@@ -1,0 +1,2 @@
+# kindred
+Ai chat app
