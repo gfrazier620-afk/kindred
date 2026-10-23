@@ -1,0 +1,20 @@
+{
+  "name": "kindred",
+  "version": "0.1.0",
+  "description": "Create your own AI characters and chat with them. Runs in the browser and installs on your phone.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "icons": "node scripts/make-icons.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.2.0"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.5",
+    "vite": "^8.3.5"
+  }
+}
