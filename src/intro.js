@@ -1,7 +1,8 @@
 // Opening screen: drifting lights that find each other, the Kindred name, tap to enter.
+import { logoSvg } from './logo.js';
 
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const COLORS = ['167, 123, 255', '255, 123, 197', '123, 190, 255'];
+const COLORS = ['94, 234, 212', '255, 210, 125', '255, 138, 92'];
 
 function startLights(canvas, pointer) {
   const ctx = canvas.getContext('2d');
@@ -103,9 +104,9 @@ export function showIntro() {
       <canvas class="intro-lights" aria-hidden="true"></canvas>
       <div class="intro-glow" aria-hidden="true"></div>
       <div class="intro-center">
-        <div class="intro-mark" aria-hidden="true"></div>
+        <div class="intro-mark" aria-hidden="true">${logoSvg(96)}</div>
         <h1 class="intro-title" aria-hidden="true">${[...'Kindred'].map((ch, i) => `<span style="--i:${i}">${ch}</span>`).join('')}</h1>
-        <p class="intro-tagline">Characters that feel like yours</p>
+        <p class="intro-tagline">Create someone. Start a story.</p>
       </div>
       <p class="intro-enter">Tap to enter</p>`;
     document.body.appendChild(el);

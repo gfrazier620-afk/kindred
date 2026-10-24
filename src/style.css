@@ -274,47 +274,49 @@ button.chip:hover { color: var(--text); border-color: var(--accent); }
 .intro {
   position: fixed; inset: 0; z-index: 1000;
   display: grid; place-items: center;
-  background: radial-gradient(ellipse at 50% 40%, #241a3d 0%, #14111c 62%, #0d0b13 100%);
+  background: radial-gradient(ellipse at 50% 38%, #123a42 0%, #0a1e26 48%, #050c11 100%);
   cursor: pointer; outline: 0; overflow: hidden; user-select: none; -webkit-user-select: none;
-  transition: opacity 0.7s ease, transform 0.7s ease, filter 0.7s ease;
+  transition: opacity 0.6s ease, transform 0.6s ease;
 }
-.intro.leaving { opacity: 0; transform: scale(1.12); filter: blur(8px); pointer-events: none; }
+.intro.leaving { opacity: 0; transform: scale(1.08); pointer-events: none; }
 .intro-lights { position: absolute; inset: 0; width: 100%; height: 100%; }
 .intro-glow {
-  position: absolute; left: 50%; top: 42%; width: min(80vw, 560px); aspect-ratio: 1; translate: -50% -50%;
-  background: radial-gradient(circle, rgba(167, 123, 255, 0.28), rgba(255, 123, 197, 0.1) 45%, transparent 70%);
-  filter: blur(20px); animation: breathe 5s ease-in-out infinite;
+  position: absolute; left: 50%; top: 40%; width: min(90vw, 620px); aspect-ratio: 1; translate: -50% -50%;
+  background:
+    radial-gradient(circle closest-side at 38% 50%, rgba(45, 212, 191, 0.26), transparent),
+    radial-gradient(circle closest-side at 62% 50%, rgba(255, 138, 92, 0.22), transparent);
+  animation: breathe 5s ease-in-out infinite;
 }
-.intro-center { position: relative; display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 0 24px; margin-top: -6vh; text-align: center; }
-.intro-mark {
-  width: 72px; height: 72px; border-radius: 24px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  box-shadow: 0 0 50px rgba(167, 123, 255, 0.65), 0 0 120px rgba(255, 123, 197, 0.3);
-  animation: mark-in 1s cubic-bezier(0.2, 0.9, 0.3, 1) both, float 6s ease-in-out 1s infinite;
-}
+.intro-center { position: relative; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 0 24px; margin-top: -6vh; text-align: center; }
+.intro-mark { animation: mark-in 1s cubic-bezier(0.2, 0.9, 0.3, 1) both, float 6s ease-in-out 1s infinite; }
+.intro-mark .logo { display: block; width: clamp(84px, 24vw, 112px); height: auto; filter: drop-shadow(0 0 18px rgba(94, 234, 212, 0.45)) drop-shadow(0 0 30px rgba(255, 138, 92, 0.3)); }
 .intro-title {
-  margin: 0; display: flex; font-size: clamp(54px, 15vw, 110px); font-weight: 800; letter-spacing: -0.04em; line-height: 1;
+  margin: 6px 0 0; display: flex; font-size: clamp(56px, 16vw, 112px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.05;
+  color: #fff; text-shadow: 0 2px 30px rgba(94, 234, 212, 0.35);
 }
-.intro-title span {
-  background: linear-gradient(180deg, #fff 20%, #c9b3ff 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
-  animation: letter-in 0.9s cubic-bezier(0.2, 0.9, 0.3, 1) both; animation-delay: calc(0.5s + var(--i) * 0.08s);
-  filter: drop-shadow(0 0 22px rgba(167, 123, 255, 0.5));
+.intro-title span { animation: letter-in 0.8s cubic-bezier(0.2, 0.9, 0.3, 1) both; animation-delay: calc(0.45s + var(--i) * 0.07s); }
+.intro-tagline {
+  margin: 4px 0 0; color: #ffe2b8; font-size: clamp(17px, 4.6vw, 22px); font-weight: 500; letter-spacing: 0.02em;
+  animation: fade-up 0.9s ease 1.3s both;
 }
-.intro-tagline { margin: 0; color: var(--muted); font-size: clamp(14px, 3.6vw, 17px); letter-spacing: 0.04em; animation: fade-up 1s ease 1.5s both; }
 .intro-enter {
-  position: absolute; left: 0; right: 0; bottom: calc(12vh + var(--safe-bottom)); margin: 0; text-align: center;
-  color: #d6c4ff; font-size: 14px; letter-spacing: 0.32em; text-transform: uppercase;
-  animation: fade-up 1s ease 2.1s both, pulse 2.4s ease-in-out 3.1s infinite;
+  position: absolute; left: 0; right: 0; bottom: calc(11vh + var(--safe-bottom)); margin: 0; text-align: center;
+  color: #9ff5e6; font-size: 14px; font-weight: 600; letter-spacing: 0.32em; text-transform: uppercase;
+  animation: fade-up 0.9s ease 1.9s both, pulse 2.4s ease-in-out 2.8s infinite;
 }
 
-@keyframes mark-in { from { opacity: 0; transform: scale(0.4) rotate(-20deg); } to { opacity: 1; transform: none; } }
-@keyframes letter-in { from { opacity: 0; transform: translateY(26px) scale(0.9); filter: blur(10px); } to { opacity: 1; transform: none; filter: drop-shadow(0 0 22px rgba(167, 123, 255, 0.5)); } }
+@keyframes mark-in { from { opacity: 0; transform: scale(0.5) rotate(-25deg); } to { opacity: 1; transform: none; } }
+@keyframes letter-in { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
 @keyframes fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
 @keyframes breathe { 0%, 100% { opacity: 0.7; scale: 1; } 50% { opacity: 1; scale: 1.08; } }
-@keyframes pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+@keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
   .intro *, .intro { animation-duration: 0.01s !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; }
   .intro { transition-duration: 0.2s; }
 }
+
+/* Small logo in the top bar */
+.brand-mark { display: none; }
+.brand .logo { width: 30px; height: 30px; }

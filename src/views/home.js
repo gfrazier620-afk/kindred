@@ -1,12 +1,13 @@
 import { listCharacters, saveCharacter, uid } from '../db.js';
 import { esc, avatarHtml, icon, $, $$, toast } from '../util.js';
+import { logoSvg } from '../logo.js';
 
 export async function renderHome(app) {
   const characters = await listCharacters();
 
   app.innerHTML = `
     <header class="topbar">
-      <div class="brand"><span class="brand-mark"></span>Kindred</div>
+      <div class="brand">${logoSvg(30)}Kindred</div>
       <div class="topbar-actions">
         <label class="icon-btn" title="Import a character file">
           ${icon('upload')}<input type="file" accept="application/json,.json" id="import" hidden>
