@@ -2,6 +2,7 @@ import './style.css';
 import { listCharacters, getCharacter, saveCharacter, getSettings, saveSettings } from './db.js';
 import { STARTER_CHARACTERS } from './seeds.js';
 import { ICON_SPRITE } from './util.js';
+import { showIntro } from './intro.js';
 import { renderHome } from './views/home.js';
 import { renderProfile } from './views/profile.js';
 import { renderEditor } from './views/editor.js';
@@ -64,6 +65,8 @@ async function seedOnce() {
 }
 
 window.addEventListener('hashchange', route);
+// The app loads behind the intro, so it's ready the moment someone taps to enter.
+showIntro();
 seedOnce().then(route);
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
