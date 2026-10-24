@@ -1,5 +1,6 @@
 import { getCharacter, deleteCharacter, listChats, deleteChat, listMemories, getSettings } from '../db.js';
 import { creatorOf } from '../stats.js';
+import { unshareCharacter } from '../share.js';
 import { esc, avatarHtml, icon, $, toast, downloadJson, formatMessage } from '../util.js';
 
 export async function renderProfile(app, id) {
@@ -85,12 +86,20 @@ export async function renderProfile(app, id) {
     </main>`;
 
   $('#export').addEventListener('click', () => {
-    const { id: _id, updatedAt, createdAt, ...data } = c;
+    const { id: _id, updatedAt, createdAt, publishedId, remoteId, imported, ...data } = c;
     downloadJson(`${c.name.replace(/[^\w-]+/g, '_')}.kindred.json`, { ...data, creator: creatorOf(c, settings) });
   });
 
   $('#delete').addEventListener('click', async () => {
     if (!confirm(`Delete ${c.name} and all chats with them? This can't be undone.`)) return;
+    // Take the shared copy down too, if there is one. If that fails, say so rather than orphan it.
+    if (c.publishedId) {
+      try {
+        await unshareCharacter(c);
+      } catch (err) {
+        if (!confirm(`Couldn't remove the shared copy from the community (${err.message}). Delete it from this device anyway?`)) return;
+      }
+    }
     await deleteCharacter(id);
     toast(`${c.name} deleted`);
     location.hash = '#/';

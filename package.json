@@ -11,7 +11,8 @@
     "icons": "node scripts/make-icons.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^1.2.0"
+    "@anthropic-ai/sdk": "^1.2.0",
+    "firebase": "^13.1.0"
   },
   "devDependencies": {
     "sharp": "^0.35.5",

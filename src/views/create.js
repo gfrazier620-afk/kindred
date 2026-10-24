@@ -1,5 +1,7 @@
 import { listCharacters, listAllChats, saveCharacter, uid } from '../db.js';
 import { isMine } from '../stats.js';
+import { cloudEnabled } from '../cloud.js';
+import { shareCharacter, unshareCharacter } from '../share.js';
 import { esc, avatarHtml, icon, $, toast } from '../util.js';
 
 export async function renderCreate(app) {
@@ -38,6 +40,11 @@ export async function renderCreate(app) {
                   <div class="row-name">${esc(c.name)}</div>
                   <div class="row-sub">${esc(c.tagline ?? '')}</div>
                   <div class="muted small">${chatCount.get(c.id) ?? 0} ${(chatCount.get(c.id) ?? 0) === 1 ? 'chat' : 'chats'}</div>
+                  ${
+                    cloudEnabled()
+                      ? `<div class="share-row">${c.publishedId ? '<span class="badge">Shared</span>' : ''}<button type="button" class="link-btn" data-share="${esc(c.id)}">${c.publishedId ? 'Unshare' : 'Share with everyone'}</button></div>`
+                      : ''
+                  }
                 </div>
               </a>
               <a class="icon-btn" href="#/c/${encodeURIComponent(c.id)}/edit" title="Edit" aria-label="Edit ${esc(c.name)}">${icon('edit')}</a>
@@ -53,13 +60,44 @@ export async function renderCreate(app) {
       }
     </main>`;
 
+  const onClick = async (e) => {
+    const btn = e.target.closest('[data-share]');
+    if (!btn) return;
+    e.preventDefault(); // the button sits inside the row's link; don't also open the character
+    const c = mine.find((x) => x.id === btn.dataset.share);
+    if (!c) return;
+    btn.disabled = true;
+    try {
+      if (c.publishedId) {
+        await unshareCharacter(c);
+        toast(`${c.name} is no longer shared`);
+      } else {
+        const ok = confirm(`Share ${c.name} with everyone on Kindred?
+
+The character's profile, photo and your nickname become public. Your chats and memories stay private.`);
+        if (!ok) {
+          btn.disabled = false;
+          return;
+        }
+        await shareCharacter(c);
+        toast(`${c.name} is now in the community`);
+      }
+      window.dispatchEvent(new HashChangeEvent('hashchange')); // redraw this screen
+    } catch (err) {
+      btn.disabled = false;
+      toast(`Couldn't update sharing: ${err.message}`, 'error');
+    }
+  };
+  app.addEventListener('click', onClick);
+
   $('#import').addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     try {
       const data = JSON.parse(await file.text());
       if (!data.name) throw new Error('missing name');
-      const character = { ...data, id: uid(), createdAt: Date.now(), imported: true };
+      const { publishedId, remoteId, ...clean } = data; // never inherit someone else's shared link
+      const character = { ...clean, id: uid(), createdAt: Date.now(), imported: true };
       await saveCharacter(character);
       toast(`Imported ${character.name}`);
       location.hash = `#/c/${character.id}`;
@@ -67,4 +105,6 @@ export async function renderCreate(app) {
       toast("That file isn't a valid character.", 'error');
     }
   });
+
+  return () => app.removeEventListener('click', onClick);
 }

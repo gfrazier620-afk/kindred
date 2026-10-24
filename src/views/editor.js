@@ -1,4 +1,6 @@
 import { getCharacter, saveCharacter, uid } from '../db.js';
+import { cloudEnabled } from '../cloud.js';
+import { shareCharacter, unshareCharacter } from '../share.js';
 import { esc, avatarHtml, icon, $, toast, resizeImage } from '../util.js';
 
 const DEFAULT_STATS = [
@@ -90,6 +92,21 @@ export async function renderEditor(app, id) {
           ${field('scenario', 'Scenario', 'Where and when the chat takes place. Use {{user}} for you and {{char}} for them.', 3, '{{user}} and {{char}} meet at…')}
           ${field('examples', 'Example dialogue (optional)', 'A few sample lines that show their voice.', 4, '{{user}}: "Hi!"\n{{char}}: He grins. "Took you long enough."')}
         </section>
+
+        ${
+          cloudEnabled()
+            ? `<section class="panel">
+          <h2>Community</h2>
+          <label class="check">
+            <input type="checkbox" name="share" ${c.publishedId ? 'checked' : ''}>
+            <span>
+              <strong>Share with everyone on Kindred</strong>
+              <span class="field-hint">Your character appears in the Home feed with its photo, profile and your nickname. Your chats and memories always stay private. You can unshare any time.</span>
+            </span>
+          </label>
+        </section>`
+            : ''
+        }
       </form>
     </main>`;
 
@@ -199,10 +216,29 @@ export async function renderEditor(app, id) {
     }
     try {
       await saveCharacter(c);
-      toast(`${c.name} saved`);
-      location.hash = `#/c/${encodeURIComponent(c.id)}`;
     } catch (err) {
       toast(`Couldn't save: ${err.message}`, 'error');
+      return;
     }
+
+    // Saved on this device. Now keep the community copy in step, if there is one.
+    let note = `${c.name} saved`;
+    if (cloudEnabled()) {
+      try {
+        if (form.share?.checked) {
+          await shareCharacter(c);
+          note = `${c.name} saved and shared`;
+        } else if (c.publishedId) {
+          await unshareCharacter(c);
+          note = `${c.name} saved and unshared`;
+        }
+      } catch (err) {
+        toast(`Saved on this device, but couldn't update the community: ${err.message}`, 'error');
+        location.hash = `#/c/${encodeURIComponent(c.id)}`;
+        return;
+      }
+    }
+    toast(note);
+    location.hash = `#/c/${encodeURIComponent(c.id)}`;
   });
 }

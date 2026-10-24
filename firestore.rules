@@ -1,0 +1,107 @@
+rules_version = '2';
+
+// Kindred community rules. Paste into Firebase console → Firestore Database → Rules → Publish.
+//
+//   characters/{id}              public characters. Anyone can read. Signed-in people can share
+//                                their own, edit or delete only their own, and like others'.
+//   characters/{id}/likes/{uid}  one document per person who liked it; only that person sees it.
+//   reports/{id}                 people can file a report; nobody can read them in the app
+//                                (you read them in the Firebase console).
+//
+// Chats, memories and API keys never leave the person's device, so nothing here stores them.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function text(value, max) {
+      return value is string && value.size() <= max;
+    }
+
+    // Checks a character document: only known fields, sensible sizes.
+    function validCharacter(d) {
+      return d.keys().hasOnly([
+          'name', 'tagline', 'bio', 'personality', 'traits', 'tags', 'stats', 'scenario',
+          'greeting', 'examples', 'photo', 'creatorUid', 'creatorName', 'createdAt',
+          'updatedAt', 'likeCount'
+        ])
+        && text(d.name, 60) && d.name.size() > 0
+        && text(d.get('tagline', ''), 160)
+        && text(d.get('bio', ''), 3000)
+        && text(d.get('personality', ''), 2000)
+        && text(d.get('scenario', ''), 1500)
+        && text(d.get('greeting', ''), 1500)
+        && text(d.get('examples', ''), 2000)
+        && text(d.get('photo', ''), 80000)
+        && text(d.get('creatorName', ''), 40)
+        && d.get('traits', []) is list && d.get('traits', []).size() <= 12
+        && d.get('tags', []) is list && d.get('tags', []).size() <= 8
+        && d.get('stats', []) is list && d.get('stats', []).size() <= 12
+        && d.likeCount is int;
+    }
+
+    match /characters/{characterId} {
+      allow read: if true;
+
+      allow create: if signedIn()
+        && validCharacter(request.resource.data)
+        && request.resource.data.creatorUid == request.auth.uid
+        && request.resource.data.likeCount == 0
+        && request.resource.data.createdAt == request.time;
+
+      // The creator can edit their own character, but not who made it, when, or its likes.
+      allow update: if signedIn() && (
+        (
+          resource.data.creatorUid == request.auth.uid
+          && validCharacter(request.resource.data)
+          && request.resource.data.creatorUid == resource.data.creatorUid
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.likeCount == resource.data.likeCount
+        )
+        ||
+        // Anyone signed in can change ONLY the like count, by exactly one, and only together
+        // with adding or removing their own like document in the same write.
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount'])
+          && (
+            (
+              request.resource.data.likeCount == resource.data.likeCount + 1
+              && !exists(/databases/$(database)/documents/characters/$(characterId)/likes/$(request.auth.uid))
+              && existsAfter(/databases/$(database)/documents/characters/$(characterId)/likes/$(request.auth.uid))
+            )
+            ||
+            (
+              request.resource.data.likeCount == resource.data.likeCount - 1
+              && resource.data.likeCount > 0
+              && exists(/databases/$(database)/documents/characters/$(characterId)/likes/$(request.auth.uid))
+              && !existsAfter(/databases/$(database)/documents/characters/$(characterId)/likes/$(request.auth.uid))
+            )
+          )
+        )
+      );
+
+      allow delete: if signedIn() && resource.data.creatorUid == request.auth.uid;
+
+      match /likes/{uid} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow create: if signedIn() && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['at'])
+          && request.resource.data.at == request.time;
+        allow delete: if signedIn() && request.auth.uid == uid;
+      }
+    }
+
+    match /reports/{reportId} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['characterId', 'reason', 'by', 'at'])
+        && text(request.resource.data.characterId, 80)
+        && text(request.resource.data.reason, 300)
+        && request.resource.data.by == request.auth.uid
+        && request.resource.data.at == request.time;
+      allow read, update, delete: if false;
+    }
+  }
+}

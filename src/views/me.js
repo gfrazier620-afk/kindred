@@ -1,5 +1,6 @@
 import { getSettings, saveSettings } from '../db.js';
 import { loadStats } from '../stats.js';
+import { cloudEnabled, myPublished } from '../cloud.js';
 import { esc, avatarHtml, icon, $, toast, resizeImage } from '../util.js';
 
 const fmt = (n) => Number(n ?? 0).toLocaleString();
@@ -87,6 +88,20 @@ export async function renderMe(app, editing = false) {
 
       <a class="panel link-row" href="#/settings">${icon('gear')}<span>Settings<br><span class="muted small">API key, model, reply length</span></span></a>
     </main>`;
+
+  // Community numbers fill in when they arrive; the rest of the page doesn't wait for them.
+  if (cloudEnabled() && !editing) {
+    myPublished()
+      .then((list) => {
+        const tilesEl = $('.tiles');
+        if (!tilesEl) return;
+        const likes = list.reduce((n, c) => n + c.likeCount, 0);
+        for (const [label, value] of [['Characters shared', list.length], ['Likes received', likes]]) {
+          tilesEl.insertAdjacentHTML('beforeend', `<div class="tile"><div class="tile-num">${fmt(value)}</div><div class="tile-label">${label}</div></div>`);
+        }
+      })
+      .catch((err) => console.warn('Community stats failed to load', err));
+  }
 
   if (!editing) {
     $('#edit').addEventListener('click', () => renderMe(app, true));
