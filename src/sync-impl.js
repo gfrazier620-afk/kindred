@@ -31,9 +31,9 @@ function friendly(err, method = 'sign-in') {
       : "Email and password sign-in isn't turned on. In Firebase: Authentication → Sign-in method → Email/Password. Switch the FIRST Enable toggle on (not just 'Email link'), then Save.",
     'auth/admin-restricted-operation':
       "Creating accounts is switched off for this project. In Firebase: Authentication → Settings → User actions → turn on 'Enable create (sign-up)'.",
-    'auth/invalid-credential': 'Wrong email or password.',
-    'auth/wrong-password': 'Wrong email or password.',
-    'auth/user-not-found': 'Wrong email or password.',
+    'auth/invalid-credential': 'Wrong email or password. If you have not made an account yet, tap Create account.',
+    'auth/wrong-password': 'Wrong email or password. If you have not made an account yet, tap Create account.',
+    'auth/user-not-found': 'Wrong email or password. If you have not made an account yet, tap Create account.',
     'auth/email-already-in-use': 'That email already has an account. Choose Sign in instead.',
     'auth/weak-password': 'Choose a password with at least 6 characters.',
     'auth/invalid-email': "That email address doesn't look right.",
