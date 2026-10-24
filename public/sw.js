@@ -1,6 +1,6 @@
 // Offline support: the app shell is cached so Kindred opens without a connection.
 // Chats with Claude still need the internet.
-const CACHE = 'kindred-v1';
+const CACHE = 'kindred-v2';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', './index.html', './manifest.webmanifest'])));
@@ -20,9 +20,10 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET' || url.origin !== location.origin) return;
 
   // Pages: network first so updates show up, fall back to cache offline.
+  // no-store skips the browser's own HTTP cache, which GitHub Pages lets hold a page for 10 minutes.
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
+      fetch(request, { cache: 'no-store' })
         .then((res) => {
           caches.open(CACHE).then((c) => c.put('./index.html', res.clone()));
           return res;

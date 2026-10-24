@@ -69,6 +69,37 @@ window.addEventListener('hashchange', route);
 showIntro();
 seedOnce().then(route);
 
+// Keeps the installed app up to date. Home-screen apps (especially on iPhone) stay suspended in
+// the background and would otherwise keep showing the version they loaded last.
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  navigator.serviceWorker.register('./sw.js').catch(() => {});
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloadWhenHidden = false;
+  let reloaded = false;
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloaded) return; // first install, nothing old to replace
+    if (document.querySelector('.intro')) {
+      reloaded = true;
+      location.reload(); // still on the intro: nothing to lose
+    } else {
+      reloadWhenHidden = true; // wait until the app is backgrounded so a chat isn't interrupted
+    }
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && reloadWhenHidden && !reloaded) {
+      reloaded = true;
+      location.reload();
+    }
+  });
+
+  navigator.serviceWorker
+    .register('./sw.js')
+    .then((reg) => {
+      // Check for a new version whenever the app is opened or brought back to the front.
+      const check = () => reg.update().catch(() => {});
+      document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && check());
+      check();
+    })
+    .catch(() => {});
 }
