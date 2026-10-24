@@ -12,6 +12,7 @@ import { renderMemories } from './views/memories.js';
 import { renderSearch } from './views/search.js';
 import { renderCreate } from './views/create.js';
 import { renderMe } from './views/me.js';
+import { renderMessages } from './views/messages.js';
 import { mountNav } from './nav.js';
 
 const app = document.getElementById('app');
@@ -27,6 +28,7 @@ const routes = [
   [/^#?\/?$/, () => renderHome(app), 'home'],
   [/^#\/search$/, () => renderSearch(app), 'search'],
   [/^#\/create$/, () => renderCreate(app), 'create'],
+  [/^#\/messages$/, () => renderMessages(app), 'messages'],
   [/^#\/me$/, () => renderMe(app), 'me'],
   [/^#\/new$/, () => renderEditor(app, null)],
   [/^#\/c\/([^/]+)$/, (id) => renderProfile(app, id)],

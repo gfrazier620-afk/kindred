@@ -446,3 +446,8 @@ body.has-nav .page { padding-bottom: calc(96px + var(--safe-bottom)); }
 .check input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--accent); flex: none; }
 .check strong { display: block; }
 .row-main.plain, .post-who.plain { background: none; border: 0; padding: 0; text-align: left; cursor: pointer; font: inherit; }
+
+/* ---------- Messages ---------- */
+.convo-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.convo .row-sub { -webkit-line-clamp: 1; }
+.tabbar .tab span { white-space: nowrap; }

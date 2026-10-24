@@ -4,6 +4,7 @@ const TABS = [
   ['home', 'Home', '#/', 'home'],
   ['search', 'Search', '#/search', 'search'],
   ['create', 'Create', '#/create', 'plus'],
+  ['messages', 'Messages', '#/messages', 'chat'],
   ['me', 'Profile', '#/me', 'user'],
 ];
 

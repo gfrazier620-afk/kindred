@@ -29,7 +29,7 @@ export async function renderChat(app, characterId, chatId) {
   app.innerHTML = `
     <div class="chat-screen">
       <header class="topbar chat-top">
-        <a class="icon-btn" href="${profileHref}" title="Back">${icon('back')}</a>
+        <a class="icon-btn" href="#/messages" id="back" title="Back">${icon('back')}</a>
         <a class="chat-who" href="${profileHref}">
           ${avatarHtml(character, 36)}
           <div><div class="chat-name">${esc(character.name)}</div><div class="muted small" id="status">${esc(character.tagline ?? '')}</div></div>
@@ -48,6 +48,15 @@ export async function renderChat(app, characterId, chatId) {
         <button class="send-btn" id="send" type="submit" title="Send">${icon('send')}</button>
       </form>
     </div>`;
+
+  // Back goes to wherever you came from (Messages, Home, a profile...). If there's nowhere to go
+  // back to, such as when the app was opened straight into this chat, it falls back to Messages.
+  $('#back').addEventListener('click', (e) => {
+    if (history.length > 1) {
+      e.preventDefault();
+      history.back();
+    }
+  });
 
   const list = $('#messages');
   const input = $('#input');
