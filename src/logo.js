@@ -7,10 +7,10 @@ export function logoSvg(size = 64) {
     <svg class="logo" width="${size}" height="${size}" viewBox="0 0 100 100" fill="none" aria-hidden="true">
       <defs>
         <linearGradient id="${id}a" x1="8" y1="30" x2="62" y2="76" gradientUnits="userSpaceOnUse">
-          <stop stop-color="#5eead4"/><stop offset="1" stop-color="#2dd4bf"/>
+          <stop stop-color="#f4f4f7"/><stop offset="1" stop-color="#9a9da8"/>
         </linearGradient>
         <linearGradient id="${id}b" x1="38" y1="30" x2="92" y2="76" gradientUnits="userSpaceOnUse">
-          <stop stop-color="#ffd27d"/><stop offset="1" stop-color="#ff8a5c"/>
+          <stop stop-color="#ffb066"/><stop offset="1" stop-color="#ff6a1a"/>
         </linearGradient>
       </defs>
       <circle cx="37" cy="50" r="24" stroke="url(#${id}a)" stroke-width="8"/>

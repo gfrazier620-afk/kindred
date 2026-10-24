@@ -274,34 +274,39 @@ button.chip:hover { color: var(--text); border-color: var(--accent); }
 .intro {
   position: fixed; inset: 0; z-index: 1000;
   display: grid; place-items: center;
-  background: radial-gradient(ellipse at 50% 38%, #123a42 0%, #0a1e26 48%, #050c11 100%);
+  background: radial-gradient(ellipse at 50% 42%, #15110d 0%, #08080b 42%, #020203 100%);
   cursor: pointer; outline: 0; overflow: hidden; user-select: none; -webkit-user-select: none;
-  transition: opacity 0.6s ease, transform 0.6s ease;
+  transition: opacity 0.7s ease; transition-delay: 0.1s;
 }
-.intro.leaving { opacity: 0; transform: scale(1.08); pointer-events: none; }
+.intro.leaving { opacity: 0; pointer-events: none; }
 .intro-lights { position: absolute; inset: 0; width: 100%; height: 100%; }
 .intro-glow {
-  position: absolute; left: 50%; top: 40%; width: min(90vw, 620px); aspect-ratio: 1; translate: -50% -50%;
+  position: absolute; left: 50%; top: 42%; width: min(110vw, 700px); aspect-ratio: 1; translate: -50% -50%;
   background:
-    radial-gradient(circle closest-side at 38% 50%, rgba(45, 212, 191, 0.26), transparent),
-    radial-gradient(circle closest-side at 62% 50%, rgba(255, 138, 92, 0.22), transparent);
+    radial-gradient(circle closest-side at 50% 50%, rgba(255, 122, 26, 0.2), transparent),
+    radial-gradient(circle closest-side at 50% 50%, rgba(210, 212, 224, 0.07), transparent 80%);
   animation: breathe 5s ease-in-out infinite;
 }
 .intro-center { position: relative; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 0 24px; margin-top: -6vh; text-align: center; }
 .intro-mark { animation: mark-in 1s cubic-bezier(0.2, 0.9, 0.3, 1) both, float 6s ease-in-out 1s infinite; }
-.intro-mark .logo { display: block; width: clamp(84px, 24vw, 112px); height: auto; filter: drop-shadow(0 0 18px rgba(94, 234, 212, 0.45)) drop-shadow(0 0 30px rgba(255, 138, 92, 0.3)); }
+.intro-mark .logo {
+  display: block; width: clamp(84px, 24vw, 112px); height: auto;
+  filter: drop-shadow(0 0 14px rgba(255, 138, 40, 0.6)) drop-shadow(0 0 34px rgba(255, 106, 26, 0.35));
+  animation: logo-glow 4s ease-in-out infinite;
+}
 .intro-title {
   margin: 6px 0 0; display: flex; font-size: clamp(56px, 16vw, 112px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.05;
-  color: #fff; text-shadow: 0 2px 30px rgba(94, 234, 212, 0.35);
+  color: #fff; text-shadow: 0 0 24px rgba(255, 140, 50, 0.5), 0 0 60px rgba(255, 106, 26, 0.25);
+  animation: title-glow 4s ease-in-out 1.5s infinite;
 }
 .intro-title span { animation: letter-in 0.8s cubic-bezier(0.2, 0.9, 0.3, 1) both; animation-delay: calc(0.45s + var(--i) * 0.07s); }
 .intro-tagline {
-  margin: 4px 0 0; color: #ffe2b8; font-size: clamp(17px, 4.6vw, 22px); font-weight: 500; letter-spacing: 0.02em;
+  margin: 4px 0 0; color: #b8b9c4; font-size: clamp(17px, 4.6vw, 22px); font-weight: 500; letter-spacing: 0.03em;
   animation: fade-up 0.9s ease 1.3s both;
 }
 .intro-enter {
   position: absolute; left: 0; right: 0; bottom: calc(11vh + var(--safe-bottom)); margin: 0; text-align: center;
-  color: #9ff5e6; font-size: 14px; font-weight: 600; letter-spacing: 0.32em; text-transform: uppercase;
+  color: #ff9a4d; font-size: 14px; font-weight: 600; letter-spacing: 0.32em; text-transform: uppercase;
   animation: fade-up 0.9s ease 1.9s both, pulse 2.4s ease-in-out 2.8s infinite;
 }
 
@@ -311,6 +316,14 @@ button.chip:hover { color: var(--text); border-color: var(--accent); }
 @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
 @keyframes breathe { 0%, 100% { opacity: 0.7; scale: 1; } 50% { opacity: 1; scale: 1.08; } }
 @keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+@keyframes logo-glow {
+  0%, 100% { filter: drop-shadow(0 0 12px rgba(255, 138, 40, 0.5)) drop-shadow(0 0 28px rgba(255, 106, 26, 0.3)); }
+  50% { filter: drop-shadow(0 0 20px rgba(255, 138, 40, 0.85)) drop-shadow(0 0 46px rgba(255, 106, 26, 0.5)); }
+}
+@keyframes title-glow {
+  0%, 100% { text-shadow: 0 0 22px rgba(255, 140, 50, 0.4), 0 0 56px rgba(255, 106, 26, 0.2); }
+  50% { text-shadow: 0 0 32px rgba(255, 140, 50, 0.75), 0 0 80px rgba(255, 106, 26, 0.4); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .intro *, .intro { animation-duration: 0.01s !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; }
