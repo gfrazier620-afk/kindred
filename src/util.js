@@ -33,7 +33,7 @@ export function avatarHtml(character, size = 48) {
 }
 
 // Shrinks an uploaded photo to a square-ish JPEG so it fits comfortably in storage.
-export function resizeImage(file, maxSize = 640) {
+export function resizeImage(file, maxSize = 1080) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
@@ -116,3 +116,33 @@ export function timeAgo(ts) {
 // Fills {{user}} and {{char}} for display.
 export const fillNames = (text, character, settings) =>
   (text ?? '').replaceAll('{{char}}', character.name).replaceAll('{{user}}', settings.userName || 'you');
+
+/** Shows a photo full screen. Tap it (or press Escape) to close. */
+export function openPhoto(src, alt = '') {
+  const overlay = document.createElement('div');
+  overlay.className = 'lightbox';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-label', alt ? `${alt}, full screen photo. Tap to close.` : 'Full screen photo. Tap to close.');
+  overlay.tabIndex = -1;
+  const img = document.createElement('img');
+  img.src = src;
+  img.alt = alt;
+  overlay.appendChild(img);
+  document.body.appendChild(overlay);
+  document.body.classList.add('no-scroll');
+  overlay.focus({ preventScroll: true });
+  requestAnimationFrame(() => overlay.classList.add('show'));
+
+  let closing = false;
+  const close = () => {
+    if (closing) return;
+    closing = true;
+    document.removeEventListener('keydown', onKey);
+    document.body.classList.remove('no-scroll');
+    overlay.classList.remove('show');
+    setTimeout(() => overlay.remove(), 220);
+  };
+  const onKey = (e) => e.key === 'Escape' && close();
+  overlay.addEventListener('click', close);
+  document.addEventListener('keydown', onKey);
+}

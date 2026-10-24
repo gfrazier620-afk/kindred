@@ -1,7 +1,7 @@
 import { getCharacter, deleteCharacter, listChats, deleteChat, listMemories, getSettings } from '../db.js';
 import { creatorOf } from '../stats.js';
 import { unshareCharacter } from '../share.js';
-import { esc, avatarHtml, icon, $, toast, downloadJson, formatMessage } from '../util.js';
+import { esc, avatarHtml, icon, $, toast, downloadJson, formatMessage, openPhoto } from '../util.js';
 
 export async function renderProfile(app, id) {
   const c = await getCharacter(id);
@@ -84,6 +84,23 @@ export async function renderProfile(app, id) {
       ${section('Scenario', c.scenario)}
       ${section('First message', c.greeting)}
     </main>`;
+
+  // Tap the photo to see it full screen (characters without a photo have nothing to enlarge).
+  const photo = app.querySelector('.profile-head img.avatar');
+  if (photo) {
+    photo.classList.add('zoomable');
+    photo.tabIndex = 0;
+    photo.setAttribute('role', 'button');
+    photo.setAttribute('aria-label', `View ${c.name}'s photo full screen`);
+    const open = () => openPhoto(c.photo, c.name);
+    photo.addEventListener('click', open);
+    photo.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        open();
+      }
+    });
+  }
 
   $('#export').addEventListener('click', () => {
     const { id: _id, updatedAt, createdAt, publishedId, remoteId, imported, ...data } = c;
