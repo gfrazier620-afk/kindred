@@ -109,7 +109,7 @@ export function friendlyError(err) {
 /**
  * Streams the character's next reply.
  * onText(fullTextSoFar) is called as text arrives.
- * Returns { text, refused } when finished. Call handle.abort() to stop early.
+ * Returns { text, refused, stopReason } when finished. Call handle.abort() to stop early.
  */
 export function streamReply({ character, settings, messages, memories, summary, onText }) {
   const client = makeClient(settings);
@@ -141,7 +141,15 @@ export function streamReply({ character, settings, messages, memories, summary, 
       }
     }
     const final = await stream.finalMessage();
-    return { text, refused: final.stop_reason === 'refusal' };
+    // Fall back to the finished message in case no text arrived as deltas.
+    if (!text.trim()) {
+      text = final.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+      if (text) onText?.(text);
+    }
+    if (!text.trim()) {
+      console.warn('Empty reply from Claude', { stop_reason: final.stop_reason, stop_details: final.stop_details, content: final.content.map((b) => b.type) });
+    }
+    return { text, refused: final.stop_reason === 'refusal', stopReason: final.stop_reason };
   })();
 
   return { done, abort: () => stream.abort() };

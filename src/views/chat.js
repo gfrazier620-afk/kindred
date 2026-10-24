@@ -111,17 +111,21 @@ export async function renderChat(app, characterId, chatId) {
 
     let ok = false;
     try {
-      const { refused } = await active.done;
-      ok = !refused;
+      const { refused, stopReason } = await active.done;
+      ok = !refused && !!msg.content.trim();
       if (refused && !msg.content.trim()) {
         msg.content = `*${character.name} doesn't respond to that.* (Claude declined this message — try rephrasing.)`;
+        msg.error = true;
+      } else if (!msg.content.trim()) {
+        msg.content = `No reply came back (reason: ${stopReason || 'unknown'}). Tap Retry to try again.`;
         msg.error = true;
       }
     } catch (err) {
       if (isAbortError(err)) {
         // Stopped by the user: keep whatever arrived.
       } else {
-        msg.content = friendlyError(err);
+        console.error('Reply failed', err);
+        msg.content = friendlyError(err) || 'Something went wrong. Tap Retry to try again.';
         msg.error = true;
       }
     } finally {
