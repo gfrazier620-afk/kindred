@@ -2,7 +2,7 @@
 // Photos are saved as resized JPEG data URLs inside the character record.
 
 const DB_NAME = 'kindred';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise;
 
@@ -18,6 +18,10 @@ function open() {
         if (!db.objectStoreNames.contains('chats')) {
           const chats = db.createObjectStore('chats', { keyPath: 'id' });
           chats.createIndex('characterId', 'characterId');
+        }
+        if (!db.objectStoreNames.contains('memories')) {
+          const memories = db.createObjectStore('memories', { keyPath: 'id' });
+          memories.createIndex('characterId', 'characterId');
         }
         if (!db.objectStoreNames.contains('settings')) {
           db.createObjectStore('settings');
@@ -59,6 +63,8 @@ export const saveCharacter = (character) =>
 export async function deleteCharacter(id) {
   const chats = await listChats(id);
   for (const c of chats) await deleteChat(c.id);
+  const memories = await listMemories(id);
+  for (const m of memories) await deleteMemory(m.id);
   await run('characters', 'readwrite', (s) => s.delete(id));
 }
 
@@ -75,6 +81,20 @@ export const saveChat = (chat) =>
   run('chats', 'readwrite', (s) => s.put({ ...chat, updatedAt: Date.now() }));
 
 export const deleteChat = (id) => run('chats', 'readwrite', (s) => s.delete(id));
+
+// ---- Memories ----
+// Long-term facts a character remembers about you, shared by all chats with that character.
+// Kept apart from the character itself so exporting a character never shares them.
+
+export const listMemories = async (characterId) => {
+  const all = await run('memories', 'readonly', (s) => s.index('characterId').getAll(characterId));
+  return all.sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || a.createdAt - b.createdAt);
+};
+
+export const saveMemory = (memory) =>
+  run('memories', 'readwrite', (s) => s.put({ ...memory, updatedAt: Date.now() }));
+
+export const deleteMemory = (id) => run('memories', 'readwrite', (s) => s.delete(id));
 
 // ---- Settings ----
 

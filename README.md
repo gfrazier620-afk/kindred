@@ -6,6 +6,7 @@ A Character.AI / Chai–style app: make a character with a photo, bio, personali
 
 - **Character creator** — upload a photo, write a bio and backstory, pick personality traits, set custom stats (0–100), a scenario, a first message and example dialogue.
 - **Chat** — streaming replies, stop mid-reply, retry the last reply, delete messages, multiple chats per character.
+- **Memory** — characters remember what matters across every chat with you (your name, your dog, promises, story events). Memories are picked up automatically every few messages, and you can view, edit, pin, add or delete them on the character's **Memories** page, or tap **Remember** on any message. Long chats are summarized in the background so the story stays coherent, and prompt caching keeps long chats cheap.
 - **Your persona** — set your name and a description characters will know about you.
 - **Share characters** — export any character as a `.json` file and import it on another device.
 - **Phone app** — installable (PWA) on Android and iPhone, with offline startup.
@@ -62,7 +63,8 @@ Pick the model in Settings: **Opus 5.5** (best quality, default), **Sonnet 5.5**
 ```
 index.html              app entry
 src/main.js             router + startup
-src/ai.js               builds the character prompt, streams replies from Claude
+src/ai.js               builds the character prompt, streams replies, extracts memories, summarizes
+src/memory.js           decides when to save memories and summarize long chats
 src/db.js               on-device storage (IndexedDB)
 src/views/              home, profile, editor, chat, settings screens
 src/seeds.js            starter characters

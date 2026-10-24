@@ -239,3 +239,27 @@ button.chip:hover { color: var(--text); border-color: var(--accent); }
   .stat-row { grid-template-columns: 1fr 34px 32px; }
   .stat-row .stat-name { grid-column: 1 / -1; }
 }
+
+/* ---------- Memories ---------- */
+.profile-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 12px; }
+.profile-head .profile-actions .btn { margin-top: 0; }
+.count { background: var(--accent-soft); color: #d6c4ff; border-radius: 99px; padding: 0 8px; font-size: 13px; }
+
+.memories-head { display: flex; gap: 14px; align-items: center; margin: 8px 0 18px; }
+.memories-head p { margin: 0; font-size: 14px; }
+.memory-add { display: flex; gap: 8px; margin-bottom: 16px; }
+.memory-add input {
+  flex: 1; min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; outline: 0;
+}
+.memory-add input:focus { border-color: var(--accent); }
+.memory-list { list-style: none; margin: 0 0 18px; padding: 0; display: grid; gap: 8px; }
+.memory { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px 6px; }
+.memory.pinned { border-color: rgba(167, 123, 255, 0.55); }
+.memory-text { outline: 0; border-radius: 6px; padding: 2px 4px; margin: -2px -4px; }
+.memory-text:focus { background: var(--bg-2); box-shadow: 0 0 0 1px var(--accent); }
+.memory-meta { display: flex; align-items: center; gap: 2px; margin-top: 4px; }
+.memory-meta .muted { margin-right: auto; }
+.tool.on { color: var(--accent); }
+.empty { text-align: center; color: var(--muted); padding: 30px 16px; }
+.empty .icon { width: 40px; height: 40px; opacity: 0.6; }
+.danger-text { color: var(--danger); }

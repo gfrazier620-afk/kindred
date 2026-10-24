@@ -1,5 +1,6 @@
-import { getCharacter, getChat, listChats, saveChat, getSettings, uid } from '../db.js';
+import { getCharacter, getChat, listChats, saveChat, getSettings, listMemories, uid } from '../db.js';
 import { streamReply, friendlyError, isAbortError } from '../ai.js';
+import { updateMemory, liveMessages, addMemory } from '../memory.js';
 import { esc, avatarHtml, icon, $, formatMessage, toast } from '../util.js';
 
 export async function renderChat(app, characterId, chatId) {
@@ -32,6 +33,7 @@ export async function renderChat(app, characterId, chatId) {
           ${avatarHtml(character, 36)}
           <div><div class="chat-name">${esc(character.name)}</div><div class="muted small" id="status">${esc(character.tagline ?? '')}</div></div>
         </a>
+        <a class="icon-btn" href="${profileHref}/memories" title="Memories">${icon('brain')}</a>
         <a class="icon-btn" href="#/chat/${encodeURIComponent(characterId)}/new" title="New chat">${icon('plus')}</a>
       </header>
       ${
@@ -61,7 +63,8 @@ export async function renderChat(app, characterId, chatId) {
           <div class="bubble ${m.error ? 'bubble-error' : ''}">${m.content ? formatMessage(m.content) : '<span class="typing"><i></i><i></i><i></i></span>'}</div>
           <div class="msg-tools">
             ${isLastReply ? `<button type="button" class="tool" data-action="regen">${icon('refresh')} Retry</button>` : ''}
-            <button type="button" class="tool" data-action="delete">${icon('trash')}</button>
+            ${m.content && !m.error ? `<button type="button" class="tool" data-action="remember" title="Add to ${esc(character.name)}'s memories">${icon('brain')} Remember</button>` : ''}
+            <button type="button" class="tool" data-action="delete" title="Delete message">${icon('trash')}</button>
           </div>
         </div>
       </div>`;
@@ -83,7 +86,9 @@ export async function renderChat(app, characterId, chatId) {
       toast('Add your API key in Settings first.', 'error');
       return;
     }
-    const history = chat.messages.slice();
+    // Older messages already folded into chat.summary aren't resent.
+    const history = liveMessages(chat);
+    const memories = await listMemories(characterId);
     const msg = { id: uid(), role: 'assistant', content: '' };
     chat.messages.push(msg);
     render();
@@ -94,6 +99,8 @@ export async function renderChat(app, characterId, chatId) {
       character,
       settings,
       messages: history,
+      memories,
+      summary: chat.summary,
       onText: (text) => {
         msg.content = text;
         bubbleEl.innerHTML = formatMessage(text);
@@ -102,8 +109,10 @@ export async function renderChat(app, characterId, chatId) {
       },
     });
 
+    let ok = false;
     try {
       const { refused } = await active.done;
+      ok = !refused;
       if (refused && !msg.content.trim()) {
         msg.content = `*${character.name} doesn't respond to that.* (Claude declined this message — try rephrasing.)`;
         msg.error = true;
@@ -122,6 +131,13 @@ export async function renderChat(app, characterId, chatId) {
       render();
       await saveChat(chat);
     }
+    if (ok) rememberInBackground();
+  }
+
+  async function rememberInBackground() {
+    const changed = await updateMemory({ chat, character, settings });
+    await saveChat(chat);
+    if (changed) toast(`${character.name} will remember that`);
   }
 
   $('#composer').addEventListener('submit', async (e) => {
@@ -160,7 +176,14 @@ export async function renderChat(app, characterId, chatId) {
     if (!btn || active) return;
     const id = btn.closest('.msg').dataset.id;
     const index = chat.messages.findIndex((m) => m.id === id);
-    if (btn.dataset.action === 'delete') {
+    if (btn.dataset.action === 'remember') {
+      const msg = chat.messages[index];
+      const text = prompt(`What should ${character.name} remember?`, msg.content.replace(/\*/g, '').slice(0, 300));
+      if (text?.trim()) {
+        await addMemory(characterId, text, { pinned: true });
+        toast('Saved to memories (pinned)');
+      }
+    } else if (btn.dataset.action === 'delete') {
       chat.messages.splice(index, 1);
       render();
       await saveChat(chat);

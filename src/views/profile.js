@@ -1,4 +1,4 @@
-import { getCharacter, deleteCharacter, listChats, deleteChat } from '../db.js';
+import { getCharacter, deleteCharacter, listChats, deleteChat, listMemories } from '../db.js';
 import { esc, avatarHtml, icon, $, toast, downloadJson, formatMessage } from '../util.js';
 
 export async function renderProfile(app, id) {
@@ -7,7 +7,7 @@ export async function renderProfile(app, id) {
     location.hash = '#/';
     return;
   }
-  const chats = await listChats(id);
+  const [chats, memories] = await Promise.all([listChats(id), listMemories(id)]);
 
   const section = (title, body) =>
     body ? `<section class="panel"><h2>${title}</h2><div class="prose">${formatMessage(body)}</div></section>` : '';
@@ -27,7 +27,10 @@ export async function renderProfile(app, id) {
         <h1>${esc(c.name)}</h1>
         ${c.tagline ? `<p class="muted">${esc(c.tagline)}</p>` : ''}
         ${c.tags?.length ? `<div class="chips">${c.tags.map((t) => `<span class="chip">${esc(t)}</span>`).join('')}</div>` : ''}
-        <a class="btn primary big" href="#/chat/${encodeURIComponent(id)}/new">${icon('chat')} Start a new chat</a>
+        <div class="profile-actions">
+          <a class="btn primary big" href="#/chat/${encodeURIComponent(id)}/new">${icon('chat')} Start a new chat</a>
+          <a class="btn big" href="#/c/${encodeURIComponent(id)}/memories">${icon('brain')} Memories${memories.length ? ` <span class="count">${memories.length}</span>` : ''}</a>
+        </div>
       </div>
 
       ${

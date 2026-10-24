@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { betaJSONSchemaOutputFormat } from '@anthropic-ai/sdk/helpers/beta/json-schema';
 
 export const MODELS = [
   { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 — best roleplay' },
@@ -8,6 +9,44 @@ export const MODELS = [
 
 // Models that support server-side refusal fallbacks on the Claude API.
 const FALLBACK_MODELS = new Set(['claude-opus-5-5', 'claude-sonnet-5-5']);
+
+function makeClient(settings) {
+  return new Anthropic({
+    apiKey: settings.apiKey,
+    // The key belongs to the person using the app and never leaves their device
+    // except to go straight to api.anthropic.com.
+    dangerouslyAllowBrowser: true,
+  });
+}
+
+function withFallbacks(params) {
+  if (FALLBACK_MODELS.has(params.model)) {
+    params.betas = ['server-side-fallback-2026-07-01'];
+    params.fallbacks = 'default';
+  }
+  return params;
+}
+
+// Memories and the running summary change over time, so they live in their own
+// system block after the character card. That keeps the character card cacheable.
+export function buildMemoryBlock({ memories = [], summary = '' }, character, settings) {
+  const parts = [];
+  if (memories.length) {
+    parts.push(
+      `<memories>\nThings ${character.name} remembers from earlier conversations with ${settings.userName || 'the user'}. Treat them as true and bring them up naturally when relevant.\n${memories.map((m) => `- ${m.text}`).join('\n')}\n</memories>`,
+    );
+  }
+  if (summary) {
+    parts.push(`<story_so_far>\nSummary of the earlier part of this conversation:\n${summary}\n</story_so_far>`);
+  }
+  return parts.join('\n\n');
+}
+
+const transcript = (messages, character, settings) =>
+  messages
+    .filter((m) => m.content?.trim() && !m.error)
+    .map((m) => `${m.role === 'user' ? settings.userName || 'User' : character.name}: ${m.content}`)
+    .join('\n\n');
 
 export function buildSystemPrompt(character, settings) {
   const fill = (text) =>
@@ -72,25 +111,24 @@ export function friendlyError(err) {
  * onText(fullTextSoFar) is called as text arrives.
  * Returns { text, refused } when finished. Call handle.abort() to stop early.
  */
-export function streamReply({ character, settings, messages, onText }) {
-  const client = new Anthropic({
-    apiKey: settings.apiKey,
-    // The key belongs to the person using the app and never leaves their device
-    // except to go straight to api.anthropic.com.
-    dangerouslyAllowBrowser: true,
-  });
+export function streamReply({ character, settings, messages, memories, summary, onText }) {
+  const client = makeClient(settings);
 
-  const params = {
+  const system = [
+    { type: 'text', text: buildSystemPrompt(character, settings), cache_control: { type: 'ephemeral' } },
+  ];
+  const memoryBlock = buildMemoryBlock({ memories, summary }, character, settings);
+  if (memoryBlock) system.push({ type: 'text', text: memoryBlock });
+
+  const params = withFallbacks({
     model: settings.model,
     max_tokens: 64000,
-    system: buildSystemPrompt(character, settings),
+    system,
     messages: toApiMessages(messages),
     output_config: { effort: settings.effort || 'low' },
-  };
-  if (FALLBACK_MODELS.has(settings.model)) {
-    params.betas = ['server-side-fallback-2026-07-01'];
-    params.fallbacks = 'default';
-  }
+    // Caches the conversation so far, so each new message only pays full price for what's new.
+    cache_control: { type: 'ephemeral' },
+  });
 
   const stream = client.beta.messages.stream(params);
 
@@ -107,4 +145,98 @@ export function streamReply({ character, settings, messages, onText }) {
   })();
 
   return { done, abort: () => stream.abort() };
+}
+
+const MEMORY_SCHEMA = {
+  type: 'object',
+  properties: {
+    add: { type: 'array', items: { type: 'string' } },
+    update: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { id: { type: 'string' }, text: { type: 'string' } },
+        required: ['id', 'text'],
+        additionalProperties: false,
+      },
+    },
+    remove: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['add', 'update', 'remove'],
+  additionalProperties: false,
+};
+
+/**
+ * Reads the newest part of a chat and decides what the character should remember long-term.
+ * Returns { add: string[], update: {id, text}[], remove: string[] }, or null if nothing could be read.
+ */
+export async function extractMemories({ character, settings, memories, context, newMessages }) {
+  const user = settings.userName || 'the user';
+  const existing = memories.length
+    ? memories.map((m) => `[${m.id}]${m.pinned ? ' (pinned)' : ''} ${m.text}`).join('\n')
+    : '(none yet)';
+
+  const prompt = `You maintain the long-term memory of ${character.name}, an AI roleplay character, about their conversations with ${user}. These memories carry over into every future chat, so they should capture what a real friend would remember.
+
+<current_memories>
+${existing}
+</current_memories>
+
+<earlier_context>
+${transcript(context, character, settings) || '(start of chat)'}
+</earlier_context>
+
+<new_messages>
+${transcript(newMessages, character, settings)}
+</new_messages>
+
+Update the memories based on the new messages only:
+- add: new lasting facts — things ${user} shares about themselves (name, likes, life events, feelings), how the relationship is developing, important story events, promises or plans, and anything ${character.name} learns or decides that should stay true later.
+- update: rewrite an existing memory (by id) when the new messages change or add detail to it.
+- remove: ids of memories that are now clearly wrong or obsolete.
+
+Write each memory as one short, specific sentence in third person, using names (e.g. "${user} has a dog named Biscuit."). Skip small talk, anything already covered, and details that only matter for this moment. Never update or remove pinned memories. Empty lists are a perfectly good answer when nothing new is worth remembering.`;
+
+  const client = makeClient(settings);
+  const response = await client.beta.messages.parse(
+    withFallbacks({
+      model: settings.model,
+      max_tokens: 16000,
+      messages: [{ role: 'user', content: prompt }],
+      output_config: { effort: 'low', format: betaJSONSchemaOutputFormat(MEMORY_SCHEMA) },
+    }),
+  );
+  if (response.stop_reason === 'refusal' || !response.parsed_output) return null;
+  return response.parsed_output;
+}
+
+/**
+ * Folds older messages into a running summary so long chats stay coherent
+ * without resending every word.
+ */
+export async function summarizeChat({ character, settings, previousSummary, messages }) {
+  const prompt = `Summarize this roleplay conversation between ${character.name} and ${settings.userName || 'the user'} so it can continue seamlessly later. Keep the key events in order, where things stand now, how the characters feel about each other, and any unresolved threads, names, places or promises. Write in past tense as compact prose, at most about 400 words.
+
+${previousSummary ? `<summary_so_far>\n${previousSummary}\n</summary_so_far>\n\nThe messages below come after that summary; merge them into one updated summary.\n\n` : ''}<messages>
+${transcript(messages, character, settings)}
+</messages>
+
+Reply with only the summary.`;
+
+  const client = makeClient(settings);
+  const response = await client.beta.messages.create(
+    withFallbacks({
+      model: settings.model,
+      max_tokens: 16000,
+      messages: [{ role: 'user', content: prompt }],
+      output_config: { effort: 'low' },
+    }),
+  );
+  if (response.stop_reason === 'refusal') return null;
+  const text = response.content
+    .filter((b) => b.type === 'text')
+    .map((b) => b.text)
+    .join('')
+    .trim();
+  return text || null;
 }

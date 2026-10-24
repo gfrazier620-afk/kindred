@@ -7,6 +7,7 @@ import { renderProfile } from './views/profile.js';
 import { renderEditor } from './views/editor.js';
 import { renderChat } from './views/chat.js';
 import { renderSettings } from './views/settings.js';
+import { renderMemories } from './views/memories.js';
 
 const app = document.getElementById('app');
 document.body.insertAdjacentHTML('afterbegin', ICON_SPRITE);
@@ -19,6 +20,7 @@ const routes = [
   [/^#\/new$/, () => renderEditor(app, null)],
   [/^#\/c\/([^/]+)$/, (id) => renderProfile(app, id)],
   [/^#\/c\/([^/]+)\/edit$/, (id) => renderEditor(app, id)],
+  [/^#\/c\/([^/]+)\/memories$/, (id) => renderMemories(app, id)],
   [/^#\/chat\/([^/]+)(?:\/([^/]+))?$/, (id, chatId) => renderChat(app, id, chatId)],
   [/^#\/settings$/, () => renderSettings(app)],
 ];
