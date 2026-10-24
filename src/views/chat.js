@@ -1,4 +1,4 @@
-import { getCharacter, getChat, listChats, saveChat, getSettings, listMemories, uid } from '../db.js';
+import { getCharacter, getChat, listChats, saveChat, getSettings, listMemories, bumpStats, uid } from '../db.js';
 import { streamReply, friendlyError, isAbortError } from '../ai.js';
 import { updateMemory, liveMessages, addMemory } from '../memory.js';
 import { esc, avatarHtml, icon, $, formatMessage, toast } from '../util.js';
@@ -19,6 +19,7 @@ export async function renderChat(app, characterId, chatId) {
       chat.messages.push({ id: uid(), role: 'assistant', content: greeting });
     }
     await saveChat(chat);
+    bumpStats({ chatsStarted: 1 });
   }
   // Keep the URL pointing at this exact chat without re-rendering.
   history.replaceState(null, '', `#/chat/${encodeURIComponent(characterId)}/${encodeURIComponent(chat.id)}`);
@@ -135,7 +136,10 @@ export async function renderChat(app, characterId, chatId) {
       render();
       await saveChat(chat);
     }
-    if (ok) rememberInBackground();
+    if (ok) {
+      bumpStats({ repliesReceived: 1 });
+      rememberInBackground();
+    }
   }
 
   async function rememberInBackground() {
@@ -155,6 +159,7 @@ export async function renderChat(app, characterId, chatId) {
     // Drop a failed reply so it isn't sent back to the model.
     if (chat.messages.at(-1)?.error) chat.messages.pop();
     chat.messages.push({ id: uid(), role: 'user', content: text });
+    bumpStats({ messagesSent: 1 });
     input.value = '';
     autosize();
     render();

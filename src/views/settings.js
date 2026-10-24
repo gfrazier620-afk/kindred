@@ -19,7 +19,7 @@ export async function renderSettings(app) {
 
   app.innerHTML = `
     <header class="topbar">
-      <a class="icon-btn" href="#/" title="Back">${icon('back')}</a>
+      <a class="icon-btn" href="#/me" title="Back">${icon('back')}</a>
       <div class="topbar-title">Settings</div>
       <button class="btn primary" form="settings">Save</button>
     </header>

@@ -4,6 +4,8 @@ A Character.AI / Chai–style app: make a character with a photo, bio, personali
 
 ## Features
 
+- **Four tabs** — **Home** is a social-style feed of characters (with a "continue chatting" row on top), **Search** finds anyone by name, trait, tag or creator, **Create** holds the character creator and everything you've made, and **Profile** shows your nickname, bio and stats (messages sent, chats, characters created and more).
+
 - **Character creator** — upload a photo, write a bio and backstory, pick personality traits, set custom stats (0–100), a scenario, a first message and example dialogue.
 - **Chat** — streaming replies, stop mid-reply, retry the last reply, delete messages, multiple chats per character.
 - **Memory** — characters remember what matters across every chat with you (your name, your dog, promises, story events). Memories are picked up automatically every few messages, and you can view, edit, pin, add or delete them on the character's **Memories** page, or tap **Remember** on any message. Long chats are summarized in the background so the story stays coherent, and prompt caching keeps long chats cheap.

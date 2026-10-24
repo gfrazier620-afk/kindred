@@ -32,7 +32,7 @@ export async function renderEditor(app, id) {
 
   app.innerHTML = `
     <header class="topbar">
-      <a class="icon-btn" href="${existing ? `#/c/${encodeURIComponent(c.id)}` : '#/'}" title="Cancel">${icon('back')}</a>
+      <a class="icon-btn" href="${existing ? `#/c/${encodeURIComponent(c.id)}` : '#/create'}" title="Cancel">${icon('back')}</a>
       <div class="topbar-title">${existing ? 'Edit character' : 'New character'}</div>
       <button class="btn primary" id="save" form="editor">Save</button>
     </header>

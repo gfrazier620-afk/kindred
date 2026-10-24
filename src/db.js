@@ -105,6 +105,9 @@ const DEFAULT_SETTINGS = {
   replyLength: 'short',
   userName: 'You',
   userPersona: '',
+  nickname: '',
+  bio: '',
+  photo: '',
 };
 
 export async function getSettings() {
@@ -114,3 +117,39 @@ export async function getSettings() {
 
 export const saveSettings = (settings) =>
   run('settings', 'readwrite', (s) => s.put(settings, 'settings'));
+
+// ---- Everything at once (for stats and search) ----
+
+export const listAllChats = () => run('chats', 'readonly', (s) => s.getAll());
+export const listAllMemories = () => run('memories', 'readonly', (s) => s.getAll());
+
+// ---- Profile stats ----
+// Lifetime counters live in the settings store so deleting a chat doesn't erase your history.
+
+export const getStats = () => run('settings', 'readonly', (s) => s.get('stats'));
+export const setStats = (stats) => run('settings', 'readwrite', (s) => s.put(stats, 'stats'));
+
+// Adds to counters in a single transaction so two quick updates can't overwrite each other.
+export function bumpStats(delta) {
+  return run('settings', 'readwrite', (s) => {
+    const req = s.get('stats');
+    req.onsuccess = () => {
+      const next = { ...(req.result ?? {}) };
+      for (const [key, amount] of Object.entries(delta)) next[key] = (next[key] ?? 0) + amount;
+      s.put(next, 'stats');
+    };
+    return req;
+  });
+}
+
+// ---- Liked characters ----
+
+export const getLikes = async () => (await run('settings', 'readonly', (s) => s.get('likes'))) ?? [];
+
+export async function toggleLike(characterId) {
+  const likes = new Set(await getLikes());
+  if (likes.has(characterId)) likes.delete(characterId);
+  else likes.add(characterId);
+  await run('settings', 'readwrite', (s) => s.put([...likes], 'likes'));
+  return likes.has(characterId);
+}

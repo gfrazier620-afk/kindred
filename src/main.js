@@ -9,6 +9,10 @@ import { renderEditor } from './views/editor.js';
 import { renderChat } from './views/chat.js';
 import { renderSettings } from './views/settings.js';
 import { renderMemories } from './views/memories.js';
+import { renderSearch } from './views/search.js';
+import { renderCreate } from './views/create.js';
+import { renderMe } from './views/me.js';
+import { mountNav } from './nav.js';
 
 const app = document.getElementById('app');
 document.body.insertAdjacentHTML('afterbegin', ICON_SPRITE);
@@ -16,8 +20,14 @@ document.body.insertAdjacentHTML('afterbegin', ICON_SPRITE);
 // Each view may return a cleanup function (e.g. to stop a reply that is streaming).
 let cleanup = null;
 
+const setNav = mountNav();
+
+// [pattern, view, tab]. Screens with a tab show the bottom bar; the rest (chat, editor...) don't.
 const routes = [
-  [/^#?\/?$/, () => renderHome(app)],
+  [/^#?\/?$/, () => renderHome(app), 'home'],
+  [/^#\/search$/, () => renderSearch(app), 'search'],
+  [/^#\/create$/, () => renderCreate(app), 'create'],
+  [/^#\/me$/, () => renderMe(app), 'me'],
   [/^#\/new$/, () => renderEditor(app, null)],
   [/^#\/c\/([^/]+)$/, (id) => renderProfile(app, id)],
   [/^#\/c\/([^/]+)\/edit$/, (id) => renderEditor(app, id)],
@@ -30,9 +40,10 @@ async function route() {
   cleanup?.();
   cleanup = null;
   const hash = location.hash || '#/';
-  for (const [pattern, view] of routes) {
+  for (const [pattern, view, tab] of routes) {
     const match = hash.match(pattern);
     if (match) {
+      setNav(tab ?? null);
       window.scrollTo(0, 0);
       cleanup = (await view(...match.slice(1).map(decodeURIComponent))) ?? null;
       return;
