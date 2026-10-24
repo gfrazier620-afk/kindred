@@ -1,6 +1,8 @@
-import { getSettings, saveSettings, exportAll, importAll } from '../db.js';
+import { getSettings, saveSettings, exportAll, importAll, uid } from '../db.js';
+import { allPersonas } from '../personas.js';
+import { canSpeak, getVoices, speak, stopSpeaking } from '../voice.js';
 import { MODELS, testKey, friendlyError } from '../ai.js';
-import { esc, icon, $, toast, downloadJson } from '../util.js';
+import { esc, icon, $, toast, downloadJson, openModal } from '../util.js';
 
 const EFFORTS = [
   ['low', 'Quick — fastest replies'],
@@ -86,6 +88,46 @@ export async function renderSettings(app) {
         </section>
 
         <section class="panel">
+          <h2>Personas</h2>
+          <p class="field-hint">
+            Play as different people in different chats. Pick one from a chat's ⋯ menu. The name and description above are your default.
+          </p>
+          <div id="persona-list" class="persona-list"></div>
+          <button type="button" class="btn ghost" id="add-persona">${icon('plus')} Add persona</button>
+        </section>
+
+        ${
+          canSpeak()
+            ? `<section class="panel">
+          <h2>Voice</h2>
+          <p class="field-hint">Tap the speaker under a reply to hear it. Voices come from your device.</p>
+          <label class="field">
+            <span class="field-label">Voice</span>
+            <select name="voiceURI" id="voice-select"><option value="">Device default</option></select>
+          </label>
+          <label class="field">
+            <span class="field-label">Speed <output id="rate-out">${Number(s.voiceRate).toFixed(2)}×</output></span>
+            <input type="range" name="voiceRate" min="0.7" max="1.4" step="0.05" value="${Number(s.voiceRate)}">
+          </label>
+          <label class="field">
+            <span class="field-label">What to read</span>
+            <select name="voiceMode">
+              <option value="speech" ${s.voiceMode === 'speech' ? 'selected' : ''}>Just what they say (in quotes)</option>
+              <option value="all" ${s.voiceMode === 'all' ? 'selected' : ''}>Everything, including actions</option>
+            </select>
+          </label>
+          <label class="check">
+            <input type="checkbox" name="autoRead" ${s.autoRead ? 'checked' : ''}>
+            <span><strong>Read new replies aloud automatically</strong><span class="field-hint">Some phones only allow this after you tap send. If nothing plays, use the speaker button.</span></span>
+          </label>
+          <div class="test-row">
+            <button type="button" class="btn" id="test-voice">${icon('speaker')} Test voice</button>
+          </div>
+        </section>`
+            : ''
+        }
+
+        <section class="panel">
           <h2>Your data</h2>
           <p class="field-hint">
             Everything lives on this device. A backup is one file with your characters, chats, memories and profile, handy before
@@ -163,6 +205,103 @@ export async function renderSettings(app) {
     }
   });
 
+  // ---- Personas ----
+  let personas = [...(s.personas ?? [])];
+  let defaultId = s.defaultPersonaId ?? 'default';
+  const persistPersonas = async () => saveSettings({ ...(await getSettings()), personas, defaultPersonaId: defaultId });
+
+  const drawPersonas = () => {
+    const list = allPersonas({ ...s, personas });
+    $('#persona-list').innerHTML = list
+      .map(
+        (p) => `<div class="persona-row" data-id="${esc(p.id)}">
+          <div class="persona-text">
+            <strong>${esc(p.name)}</strong>${p.id === defaultId ? ' <span class="badge">Default</span>' : ''}
+            <div class="muted small">${esc(p.id === 'default' ? 'Your name and description above' : p.description || 'No description')}</div>
+          </div>
+          ${p.id !== defaultId ? `<button type="button" class="link-btn" data-persona="default-this">Make default</button>` : ''}
+          ${p.id !== 'default' ? `<button type="button" class="icon-btn small" data-persona="edit" aria-label="Edit ${esc(p.name)}">${icon('edit')}</button>
+          <button type="button" class="icon-btn small danger" data-persona="delete" aria-label="Delete ${esc(p.name)}">${icon('trash')}</button>` : ''}
+        </div>`,
+      )
+      .join('');
+  };
+
+  function personaDialog(existing) {
+    const { el, close } = openModal(
+      `<h2>${existing ? 'Edit persona' : 'Add a persona'}</h2>
+       <form class="editor" id="persona-form" autocomplete="off">
+         <label class="field"><span class="field-label">Name</span>
+           <input name="name" maxlength="30" required value="${esc(existing?.name ?? '')}" placeholder="e.g. Sam the knight"></label>
+         <label class="field"><span class="field-label">About this persona</span>
+           <span class="field-hint">What characters should know about you when you play this one.</span>
+           <textarea name="description" rows="4" maxlength="400" placeholder="A weary knight sworn to protect the northern road…">${esc(existing?.description ?? '')}</textarea></label>
+         <div class="form-actions"><button type="button" class="btn ghost" data-close>Cancel</button><button class="btn primary">Save</button></div>
+       </form>`,
+      { label: existing ? 'Edit persona' : 'Add persona' },
+    );
+    el.querySelector('[data-close]').addEventListener('click', close);
+    el.querySelector('input').focus();
+    el.querySelector('form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = e.target.name.value.trim();
+      if (!name) return;
+      const description = e.target.description.value.trim();
+      if (existing) personas = personas.map((p) => (p.id === existing.id ? { ...p, name, description } : p));
+      else personas.push({ id: uid(), name, description });
+      await persistPersonas();
+      close();
+      drawPersonas();
+      toast(existing ? 'Persona updated' : 'Persona added');
+    });
+  }
+
+  $('#add-persona').addEventListener('click', () => personaDialog(null));
+  $('#persona-list').addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-persona]');
+    if (!btn) return;
+    const id = btn.closest('.persona-row').dataset.id;
+    const persona = personas.find((p) => p.id === id);
+    if (btn.dataset.persona === 'edit') personaDialog(persona);
+    if (btn.dataset.persona === 'default-this') {
+      defaultId = id;
+      await persistPersonas();
+      drawPersonas();
+    }
+    if (btn.dataset.persona === 'delete' && confirm(`Delete the persona "${persona.name}"? Chats using it switch to your default.`)) {
+      personas = personas.filter((p) => p.id !== id);
+      if (defaultId === id) defaultId = 'default';
+      await persistPersonas();
+      drawPersonas();
+    }
+  });
+  drawPersonas();
+
+  // ---- Voice ----
+  if (canSpeak()) {
+    getVoices().then((voices) => {
+      const select = $('#voice-select');
+      if (!select) return;
+      const mine = navigator.language?.split('-')[0];
+      const sorted = [...voices].sort((a, b) => Number(b.lang.startsWith(mine)) - Number(a.lang.startsWith(mine)) || a.name.localeCompare(b.name));
+      for (const v of sorted) {
+        const option = document.createElement('option');
+        option.value = v.voiceURI;
+        option.textContent = `${v.name} (${v.lang})`;
+        select.appendChild(option);
+      }
+      select.value = s.voiceURI;
+    });
+    form.voiceRate.addEventListener('input', () => ($('#rate-out').textContent = `${Number(form.voiceRate.value).toFixed(2)}×`));
+    $('#test-voice').addEventListener('click', () => {
+      speak('Hi there. This is how I will sound when I read my replies to you.', {
+        voiceURI: form.voiceURI.value,
+        rate: Number(form.voiceRate.value),
+        mode: 'all',
+      });
+    });
+  }
+
   // ---- Save ----
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -175,7 +314,11 @@ export async function renderSettings(app) {
       replyLength: f.replyLength.value,
       userName: f.userName.value.trim() || 'You',
       userPersona: f.userPersona.value.trim(),
+      ...(canSpeak()
+        ? { voiceURI: f.voiceURI.value, voiceRate: Number(f.voiceRate.value), voiceMode: f.voiceMode.value, autoRead: f.autoRead.checked }
+        : {}),
     });
+    stopSpeaking();
     toast('Settings saved');
     history.length > 1 ? history.back() : (location.hash = '#/');
   });

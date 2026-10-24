@@ -114,7 +114,14 @@ export function friendlyError(err) {
   if (err instanceof Anthropic.RateLimitError) return 'Rate limited — wait a moment and try again.';
   if (err instanceof Anthropic.InternalServerError) return 'Claude is having trouble right now. Try again shortly.';
   if (err instanceof Anthropic.APIConnectionError) return "Couldn't reach the API. Check your internet connection.";
-  if (err instanceof Anthropic.APIError) return err.message;
+  if (err instanceof Anthropic.APIError) {
+    // Prefer Anthropic's own sentence over the raw "400 {json...}" the library puts in err.message.
+    const detail = err.error?.error?.message ?? err.message;
+    if (/credit balance|billing/i.test(detail)) {
+      return 'Your Anthropic account is out of credit. Add some at console.anthropic.com under Settings → Billing, then try again.';
+    }
+    return detail;
+  }
   return err?.message ?? String(err);
 }
 

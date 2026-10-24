@@ -1,7 +1,11 @@
 import { getCharacter, getChat, listChats, saveChat, deleteChat, getSettings, listMemories, bumpStats, uid } from '../db.js';
 import { streamReply, friendlyError, isAbortError } from '../ai.js';
 import { updateMemory, liveMessages, addMemory } from '../memory.js';
-import { esc, avatarHtml, icon, $, formatMessage, toast, copyText } from '../util.js';
+import { allPersonas, resolvePersona, asPersona } from '../personas.js';
+import { canSpeak, canDictate, speak, stopSpeaking, unlockSpeech, listen } from '../voice.js';
+import { esc, avatarHtml, icon, $, formatMessage, toast, copyText, openModal } from '../util.js';
+
+const MAX_VARIANTS = 8;
 
 const timeOf = (at) => new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
@@ -23,6 +27,14 @@ export async function renderChat(app, characterId, chatId) {
     return;
   }
 
+  let chat = chatId && chatId !== 'new' ? await getChat(chatId) : null;
+  if (!chat && chatId !== 'new') chat = (await listChats(characterId))[0];
+
+  // Who you are in this chat: a persona chosen for it, or your default.
+  const persona = () => resolvePersona(settings, chat?.personaId);
+  // Settings as the AI should see them for this chat (your name and description swapped in).
+  const me = () => asPersona(settings, persona());
+
   // The character's opening line, with names filled in.
   const makeGreeting = () =>
     character.greeting
@@ -30,12 +42,10 @@ export async function renderChat(app, characterId, chatId) {
           id: uid(),
           role: 'assistant',
           at: Date.now(),
-          content: character.greeting.replaceAll('{{user}}', settings.userName).replaceAll('{{char}}', character.name),
+          content: character.greeting.replaceAll('{{user}}', persona().name).replaceAll('{{char}}', character.name),
         }
       : null;
 
-  let chat = chatId && chatId !== 'new' ? await getChat(chatId) : null;
-  if (!chat && chatId !== 'new') chat = (await listChats(characterId))[0];
   if (!chat) {
     chat = { id: uid(), characterId, messages: [], createdAt: Date.now() };
     const greeting = makeGreeting();
@@ -60,6 +70,7 @@ export async function renderChat(app, characterId, chatId) {
         <button type="button" class="icon-btn" id="menu-btn" title="More" aria-haspopup="menu" aria-expanded="false">${icon('more')}</button>
         <div class="menu" id="menu" role="menu" hidden>
           <a role="menuitem" href="#/chat/${encodeURIComponent(characterId)}/new">${icon('plus')} New chat</a>
+          <button type="button" role="menuitem" data-menu="persona">${icon('user')} <span>Playing as <strong id="persona-name"></strong></span></button>
           <button type="button" role="menuitem" data-menu="clear">${icon('refresh')} Clear chat</button>
           <button type="button" role="menuitem" class="danger-text" data-menu="delete">${icon('trash')} Delete conversation</button>
         </div>
@@ -74,6 +85,7 @@ export async function renderChat(app, characterId, chatId) {
         <button type="button" class="to-bottom" id="to-bottom" aria-label="Jump to the latest message" hidden>${icon('down')}</button>
       </div>
       <form class="composer" id="composer">
+        ${canDictate() ? `<button type="button" class="mic-btn" id="mic" title="Dictate" aria-label="Dictate a message" aria-pressed="false">${icon('mic')}</button>` : ''}
         <textarea id="input" rows="1" placeholder="Message ${esc(character.name)}…" enterkeyhint="send"></textarea>
         <button class="send-btn" id="send" type="submit" title="Send">${icon('send')}</button>
       </form>
@@ -94,6 +106,11 @@ export async function renderChat(app, characterId, chatId) {
   const jump = $('#to-bottom');
   let active = null; // the streaming request, if any
   let editingId = null; // the message being edited, if any
+  let speakingId = null; // the message being read aloud, if any
+  let dictation = null; // the microphone session, if any
+
+  const showPersona = () => ($('#persona-name').textContent = persona().name);
+  showPersona();
 
   const bubble = (m, i) => {
     if (m.id === editingId) {
@@ -110,7 +127,10 @@ export async function renderChat(app, characterId, chatId) {
     }
     const isLastReply = m.role === 'assistant' && i === chat.messages.length - 1 && i > 0;
     const canAct = m.content && !m.error;
-    const meta = [m.role === 'user' ? settings.userName : character.name, m.at ? timeOf(m.at) : '', m.edited ? 'edited' : ''].filter(Boolean).join(' · ');
+    const name = m.role === 'user' ? persona().name : character.name;
+    const meta = [name, m.at ? timeOf(m.at) : '', m.edited ? 'edited' : ''].filter(Boolean).join(' · ');
+    const count = m.variants?.length ?? 1;
+    const at = (m.vi ?? count - 1) + 1;
     return `
       <div class="msg ${m.role === 'user' ? 'msg-user' : 'msg-char'}" data-id="${esc(m.id)}">
         ${m.role === 'assistant' ? `<div class="msg-avatar">${avatarHtml(character, 32)}</div>` : ''}
@@ -118,10 +138,20 @@ export async function renderChat(app, characterId, chatId) {
           <div class="msg-author">${esc(meta)}</div>
           <div class="bubble ${m.error ? 'bubble-error' : ''}">${m.content ? formatMessage(m.content) : '<span class="typing"><i></i><i></i><i></i></span>'}</div>
           <div class="msg-tools">
-            ${isLastReply ? `<button type="button" class="tool" data-action="regen">${icon('refresh')} Retry</button>` : ''}
+            ${
+              isLastReply && count > 1
+                ? `<span class="swipe" role="group" aria-label="Other versions of this reply">
+                    <button type="button" class="tool" data-action="prev" ${at <= 1 ? 'disabled' : ''} aria-label="Previous version">‹</button>
+                    <span class="swipe-n">${at}/${count}</span>
+                    <button type="button" class="tool" data-action="next" aria-label="${at >= count ? 'Write a new version' : 'Next version'}">›</button>
+                  </span>`
+                : ''
+            }
+            ${isLastReply ? `<button type="button" class="tool" data-action="regen" title="Retry: write a new version" aria-label="Retry: write a new version of this reply">${icon('refresh')}</button>` : ''}
+            ${canAct && m.role === 'assistant' && canSpeak() ? `<button type="button" class="tool ${speakingId === m.id ? 'on' : ''}" data-action="speak" title="Read aloud" aria-label="Read this message aloud">${icon('speaker')}</button>` : ''}
             ${canAct ? `<button type="button" class="tool" data-action="copy" title="Copy" aria-label="Copy message">${icon('copy')}</button>` : ''}
             ${canAct ? `<button type="button" class="tool" data-action="edit" title="Edit" aria-label="Edit message">${icon('edit')}</button>` : ''}
-            ${canAct ? `<button type="button" class="tool" data-action="remember" title="Add to ${esc(character.name)}'s memories">${icon('brain')} Remember</button>` : ''}
+            ${canAct ? `<button type="button" class="tool" data-action="remember" title="Add to ${esc(character.name)}'s memories" aria-label="Add to ${esc(character.name)}'s memories">${icon('brain')}</button>` : ''}
             <button type="button" class="tool" data-action="delete" title="Delete message" aria-label="Delete message">${icon('trash')}</button>
           </div>
         </div>
@@ -170,23 +200,69 @@ export async function renderChat(app, characterId, chatId) {
     $('#status').textContent = busy ? 'typing…' : character.tagline ?? '';
   };
 
-  async function reply() {
+  // ---- Reading aloud ----
+  const markSpeaking = () => {
+    for (const btn of list.querySelectorAll('[data-action="speak"]')) {
+      btn.classList.toggle('on', btn.closest('.msg').dataset.id === speakingId);
+    }
+  };
+  const readAloud = async (msg) => {
+    speakingId = msg.id;
+    markSpeaking();
+    const started = await speak(msg.content, {
+      voiceURI: settings.voiceURI,
+      rate: settings.voiceRate,
+      mode: settings.voiceMode,
+      onEnd: () => {
+        if (speakingId === msg.id) speakingId = null;
+        markSpeaking();
+      },
+    });
+    if (!started) {
+      speakingId = null;
+      markSpeaking();
+    }
+  };
+  const silence = () => {
+    stopSpeaking();
+    speakingId = null;
+    markSpeaking();
+  };
+
+  /**
+   * Gets the character's next reply. With a target message, this writes a NEW VERSION of that
+   * reply (keeping the old ones to flip back to) instead of adding another message.
+   */
+  async function reply(target = null) {
     if (!settings.apiKey) {
       toast('Add your API key in Settings first.', 'error');
       return;
     }
-    // Older messages already folded into chat.summary aren't resent.
-    const history = liveMessages(chat);
+    silence();
     const memories = await listMemories(characterId);
-    const msg = { id: uid(), role: 'assistant', content: '', at: Date.now() };
-    chat.messages.push(msg);
+    let msg;
+    let history;
+    if (target) {
+      // Only what came before this reply goes to the model; older versions are kept aside.
+      history = chat.messages.slice(0, chat.messages.indexOf(target)).filter((m) => !m.summarized);
+      target.variants ??= [target.content];
+      target.vi ??= target.variants.length - 1;
+      msg = target;
+      msg.content = '';
+      msg.error = false;
+    } else {
+      // Older messages already folded into chat.summary aren't resent.
+      history = liveMessages(chat);
+      msg = { id: uid(), role: 'assistant', content: '', at: Date.now() };
+      chat.messages.push(msg);
+    }
     render();
     setBusy(true);
 
-    const bubbleEl = list.lastElementChild.querySelector('.bubble');
+    const bubbleEl = list.querySelector(`.msg[data-id="${msg.id}"] .bubble`);
     active = streamReply({
       character,
-      settings,
+      settings: me(),
       messages: history,
       memories,
       summary: chat.summary,
@@ -198,40 +274,56 @@ export async function renderChat(app, characterId, chatId) {
       },
     });
 
-    let ok = false;
+    let failure = ''; // what to tell the person if this reply didn't work
     try {
       const { refused, stopReason } = await active.done;
-      ok = !refused && !!msg.content.trim();
       if (refused && !msg.content.trim()) {
-        msg.content = `*${character.name} doesn't respond to that.* (Claude declined this message — try rephrasing.)`;
-        msg.error = true;
+        failure = `*${character.name} doesn't respond to that.* (Claude declined this message — try rephrasing.)`;
       } else if (!msg.content.trim()) {
-        msg.content = `No reply came back (reason: ${stopReason || 'unknown'}). Tap Retry to try again.`;
-        msg.error = true;
+        failure = `No reply came back (reason: ${stopReason || 'unknown'}). Tap Retry to try again.`;
       }
     } catch (err) {
-      if (isAbortError(err)) {
-        // Stopped by the user: keep whatever arrived.
-      } else {
+      // Stopping it yourself isn't a failure: whatever arrived is kept.
+      if (!isAbortError(err)) {
         console.error('Reply failed', err);
-        msg.content = friendlyError(err) || 'Something went wrong. Tap Retry to try again.';
-        msg.error = true;
+        failure = friendlyError(err) || 'Something went wrong. Tap Retry to try again.';
       }
     } finally {
       active = null;
-      if (!msg.content.trim()) chat.messages.pop();
       setBusy(false);
-      render();
-      await saveChat(chat);
     }
-    if (ok) {
+
+    const worked = !failure && !!msg.content.trim();
+    if (target) {
+      const previous = target.variants[target.vi];
+      if (worked) {
+        target.variants.push(msg.content);
+        if (target.variants.length > MAX_VARIANTS) target.variants.shift();
+        target.vi = target.variants.length - 1;
+        delete target.memorized; // new wording: let memory take another look
+      } else {
+        target.content = previous; // nothing to swap in: keep the version you had
+        if (failure) toast(failure.replaceAll('*', ''), 'error');
+      }
+    } else {
+      if (failure) {
+        msg.content = failure;
+        msg.error = true;
+      }
+      if (!msg.content.trim()) chat.messages.pop();
+    }
+    render();
+    await saveChat(chat);
+
+    if (worked) {
       bumpStats({ repliesReceived: 1 });
+      if (settings.autoRead) readAloud(msg);
       rememberInBackground();
     }
   }
 
   async function rememberInBackground() {
-    const changed = await updateMemory({ chat, character, settings });
+    const changed = await updateMemory({ chat, character, settings: me() });
     await saveChat(chat);
     if (changed) toast(`${character.name} will remember that`);
   }
@@ -244,6 +336,8 @@ export async function renderChat(app, characterId, chatId) {
     }
     const text = input.value.trim();
     if (!text) return;
+    dictation?.stop();
+    if (settings.autoRead) unlockSpeech(); // lets the next reply be read aloud on iPhones
     editingId = null; // sending while editing drops the unsaved edit
     // Drop a failed reply so it isn't sent back to the model.
     if (chat.messages.at(-1)?.error) chat.messages.pop();
@@ -269,6 +363,37 @@ export async function renderChat(app, characterId, chatId) {
   };
   input.addEventListener('input', autosize);
 
+  // ---- Dictation ----
+  const mic = $('#mic');
+  mic?.addEventListener('click', () => {
+    if (dictation) {
+      dictation.stop();
+      return;
+    }
+    const before = input.value ? `${input.value.trim()} ` : '';
+    const done = () => {
+      dictation = null;
+      mic.classList.remove('listening');
+      mic.setAttribute('aria-pressed', 'false');
+    };
+    dictation = listen({
+      onText: (text) => {
+        input.value = before + text;
+        autosize();
+      },
+      onEnd: done,
+      onError: (code) => {
+        if (code === 'not-allowed' || code === 'service-not-allowed') toast('Microphone access is blocked for this site.', 'error');
+        else if (code !== 'no-speech' && code !== 'aborted') toast(`Dictation stopped (${code}).`, 'error');
+        done();
+      },
+    });
+    if (dictation) {
+      mic.classList.add('listening');
+      mic.setAttribute('aria-pressed', 'true');
+    }
+  });
+
   // ---- Jump to latest ----
   list.addEventListener('scroll', updateJump, { passive: true });
   jump.addEventListener('click', () => list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' }));
@@ -285,8 +410,24 @@ export async function renderChat(app, characterId, chatId) {
     if (text !== msg.content) {
       msg.content = text;
       msg.edited = true;
+      if (msg.variants) msg.variants[msg.vi ?? msg.variants.length - 1] = text; // edit the version you're looking at
     }
     editingId = null;
+    render({ stick: false });
+    await saveChat(chat);
+  }
+
+  // Flip to another version of the last reply. Going past the newest one writes a fresh version.
+  async function showVersion(msg, step) {
+    const at = msg.vi ?? msg.variants.length - 1;
+    if (step > 0 && at >= msg.variants.length - 1) {
+      reply(msg);
+      return;
+    }
+    msg.vi = Math.max(0, Math.min(msg.variants.length - 1, at + step));
+    msg.content = msg.variants[msg.vi];
+    delete msg.edited;
+    silence();
     render({ stick: false });
     await saveChat(chat);
   }
@@ -299,7 +440,10 @@ export async function renderChat(app, characterId, chatId) {
     const msg = chat.messages[index];
     const action = btn.dataset.action;
 
-    if (action === 'copy') {
+    if (action === 'speak') {
+      if (speakingId === id) silence();
+      else readAloud(msg);
+    } else if (action === 'copy') {
       await copyText(msg.content);
       toast('Copied');
     } else if (action === 'edit') {
@@ -317,12 +461,16 @@ export async function renderChat(app, characterId, chatId) {
         toast('Saved to memories (pinned)');
       }
     } else if (action === 'delete') {
+      if (speakingId === id) silence();
       chat.messages.splice(index, 1);
       render({ stick: false });
       await saveChat(chat);
+    } else if (action === 'prev') {
+      showVersion(msg, -1);
+    } else if (action === 'next') {
+      showVersion(msg, 1);
     } else if (action === 'regen') {
-      chat.messages.splice(index, 1);
-      reply();
+      reply(msg);
     }
   });
 
@@ -339,7 +487,34 @@ export async function renderChat(app, characterId, chatId) {
   });
   list.addEventListener('input', (e) => e.target.classList.contains('edit-box') && growBox(e.target));
 
-  // ---- More menu: clear or delete this conversation ----
+  // ---- Choose who you are in this chat ----
+  function choosePersona() {
+    const personas = allPersonas(settings);
+    const current = persona().id;
+    const { el, close } = openModal(
+      `<h2>Who are you in this chat?</h2>
+       ${personas
+         .map(
+           (p) => `<label class="persona-option">
+             <input type="radio" name="persona" value="${esc(p.id)}" ${p.id === current ? 'checked' : ''}>
+             <span><strong>${esc(p.name)}</strong><span class="muted">${esc(p.description || 'No description')}</span></span>
+           </label>`,
+         )
+         .join('')}
+       <p class="field-hint">${character.name} will call you by this name and know this about you. Add more in <a href="#/settings">Settings</a>.</p>`,
+      { label: 'Choose a persona' },
+    );
+    el.addEventListener('change', async (e) => {
+      chat.personaId = e.target.value;
+      close();
+      showPersona();
+      render({ stick: false });
+      await saveChat(chat);
+      toast(`You're ${persona().name} in this chat`);
+    });
+  }
+
+  // ---- More menu ----
   const menu = $('#menu');
   const menuBtn = $('#menu-btn');
   const closeMenu = () => {
@@ -358,6 +533,10 @@ export async function renderChat(app, characterId, chatId) {
     const item = e.target.closest('[data-menu]');
     if (!item) return;
     closeMenu();
+    if (item.dataset.menu === 'persona') {
+      choosePersona();
+      return;
+    }
     if (active) {
       toast('Wait for the reply to finish first.', 'error');
       return;
@@ -365,6 +544,7 @@ export async function renderChat(app, characterId, chatId) {
     if (item.dataset.menu === 'clear') {
       if (!confirm(`Clear this chat? ${character.name} keeps what they remember about you, but the messages are removed.`)) return;
       editingId = null;
+      silence();
       const greeting = makeGreeting();
       chat.messages = greeting ? [greeting] : [];
       delete chat.summary;
@@ -373,6 +553,7 @@ export async function renderChat(app, characterId, chatId) {
       toast('Chat cleared');
     } else if (item.dataset.menu === 'delete') {
       if (!confirm(`Delete this whole conversation with ${character.name}? This can't be undone.`)) return;
+      silence();
       await deleteChat(chat.id);
       toast('Conversation deleted');
       location.hash = '#/messages';
@@ -384,6 +565,8 @@ export async function renderChat(app, characterId, chatId) {
 
   return () => {
     active?.abort();
+    dictation?.stop();
+    stopSpeaking();
     document.removeEventListener('click', onDocClick);
   };
 }

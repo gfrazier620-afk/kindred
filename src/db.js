@@ -108,6 +108,12 @@ const DEFAULT_SETTINGS = {
   nickname: '',
   bio: '',
   photo: '',
+  personas: [],
+  defaultPersonaId: 'default',
+  voiceURI: '',
+  voiceRate: 1,
+  voiceMode: 'speech',
+  autoRead: false,
 };
 
 export async function getSettings() {

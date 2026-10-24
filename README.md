@@ -4,6 +4,10 @@ A Character.AI / Chai–style app: make a character with a photo, bio, personali
 
 ## Features
 
+- **Swipe replies** — Retry keeps the old reply; flip between versions with the ‹ › arrows and the chat uses the one you pick.
+- **Personas** — add different versions of yourself in Settings and choose who you are per chat from the chat menu.
+- **Voice** — read replies aloud (dialogue only or everything, with voice and speed options) and dictate messages where the browser supports it.
+
 - **Build with AI** — describe a character in a sentence and Claude drafts the name, backstory, personality, stats and opening line for you to tweak.
 - **Backup & restore** — Settings → Your data downloads one file with your characters, chats, memories and profile (never your API key) and restores it on any device.
 - **Chat tools** — edit or copy any message, message times and day dividers, a jump-to-latest button, and Clear chat / Delete conversation in the chat menu.
