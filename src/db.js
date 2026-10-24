@@ -45,6 +45,19 @@ async function run(store, mode, fn) {
   });
 }
 
+// The sync engine registers here to hear about every local change.
+let changeHook = null;
+export const onLocalChange = (fn) => {
+  changeHook = fn;
+};
+const changed = (kind, id) => {
+  try {
+    changeHook?.(kind, id);
+  } catch (err) {
+    console.warn('Change hook failed', err);
+  }
+};
+
 export const uid = () =>
   (crypto.randomUUID?.() ?? Date.now().toString(36) + Math.random().toString(36).slice(2));
 
@@ -57,8 +70,10 @@ export const listCharacters = async () => {
 
 export const getCharacter = (id) => run('characters', 'readonly', (s) => s.get(id));
 
-export const saveCharacter = (character) =>
-  run('characters', 'readwrite', (s) => s.put({ ...character, updatedAt: Date.now() }));
+export const saveCharacter = async (character) => {
+  await run('characters', 'readwrite', (s) => s.put({ ...character, updatedAt: Date.now() }));
+  changed('characters', character.id);
+};
 
 export async function deleteCharacter(id) {
   const chats = await listChats(id);
@@ -66,6 +81,7 @@ export async function deleteCharacter(id) {
   const memories = await listMemories(id);
   for (const m of memories) await deleteMemory(m.id);
   await run('characters', 'readwrite', (s) => s.delete(id));
+  changed('characters', id);
 }
 
 // ---- Chats ----
@@ -77,10 +93,15 @@ export const listChats = async (characterId) => {
 
 export const getChat = (id) => run('chats', 'readonly', (s) => s.get(id));
 
-export const saveChat = (chat) =>
-  run('chats', 'readwrite', (s) => s.put({ ...chat, updatedAt: Date.now() }));
+export const saveChat = async (chat) => {
+  await run('chats', 'readwrite', (s) => s.put({ ...chat, updatedAt: Date.now() }));
+  changed('chats', chat.id);
+};
 
-export const deleteChat = (id) => run('chats', 'readwrite', (s) => s.delete(id));
+export const deleteChat = async (id) => {
+  await run('chats', 'readwrite', (s) => s.delete(id));
+  changed('chats', id);
+};
 
 // ---- Memories ----
 // Long-term facts a character remembers about you, shared by all chats with that character.
@@ -91,10 +112,15 @@ export const listMemories = async (characterId) => {
   return all.sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || a.createdAt - b.createdAt);
 };
 
-export const saveMemory = (memory) =>
-  run('memories', 'readwrite', (s) => s.put({ ...memory, updatedAt: Date.now() }));
+export const saveMemory = async (memory) => {
+  await run('memories', 'readwrite', (s) => s.put({ ...memory, updatedAt: Date.now() }));
+  changed('memories', memory.id);
+};
 
-export const deleteMemory = (id) => run('memories', 'readwrite', (s) => s.delete(id));
+export const deleteMemory = async (id) => {
+  await run('memories', 'readwrite', (s) => s.delete(id));
+  changed('memories', id);
+};
 
 // ---- Settings ----
 
@@ -121,8 +147,13 @@ export async function getSettings() {
   return { ...DEFAULT_SETTINGS, ...saved };
 }
 
-export const saveSettings = (settings) =>
-  run('settings', 'readwrite', (s) => s.put(settings, 'settings'));
+export const saveSettings = async (settings) => {
+  await run('settings', 'readwrite', (s) => s.put({ ...settings, profileUpdatedAt: Date.now() }, 'settings'));
+  changed('meta', 'profile');
+};
+
+// Used by sync when it brings settings in from the cloud (keeps their timestamp, doesn't re-upload).
+export const saveSettingsRaw = (settings) => run('settings', 'readwrite', (s) => s.put(settings, 'settings'));
 
 // ---- Everything at once (for stats and search) ----
 
@@ -133,11 +164,15 @@ export const listAllMemories = () => run('memories', 'readonly', (s) => s.getAll
 // Lifetime counters live in the settings store so deleting a chat doesn't erase your history.
 
 export const getStats = () => run('settings', 'readonly', (s) => s.get('stats'));
-export const setStats = (stats) => run('settings', 'readwrite', (s) => s.put(stats, 'stats'));
+export const setStats = async (stats) => {
+  await run('settings', 'readwrite', (s) => s.put(stats, 'stats'));
+  changed('meta', 'stats');
+};
+export const setStatsRaw = (stats) => run('settings', 'readwrite', (s) => s.put(stats, 'stats'));
 
 // Adds to counters in a single transaction so two quick updates can't overwrite each other.
 export function bumpStats(delta) {
-  return run('settings', 'readwrite', (s) => {
+  const done = run('settings', 'readwrite', (s) => {
     const req = s.get('stats');
     req.onsuccess = () => {
       const next = { ...(req.result ?? {}) };
@@ -146,9 +181,19 @@ export function bumpStats(delta) {
     };
     return req;
   });
+  done.then(() => changed('meta', 'stats'));
+  return done;
 }
 
 // ---- Liked characters ----
+
+export const getLikesAt = async () => (await run('settings', 'readonly', (s) => s.get('likesAt'))) ?? 0;
+// Used by sync when it brings likes in from the cloud.
+export const setLikesRaw = async (ids, at) =>
+  run('settings', 'readwrite', (s) => {
+    s.put(at, 'likesAt');
+    return s.put(ids, 'likes');
+  });
 
 export const getLikes = async () => (await run('settings', 'readonly', (s) => s.get('likes'))) ?? [];
 
@@ -156,13 +201,17 @@ export async function toggleLike(characterId) {
   const likes = new Set(await getLikes());
   if (likes.has(characterId)) likes.delete(characterId);
   else likes.add(characterId);
-  await run('settings', 'readwrite', (s) => s.put([...likes], 'likes'));
+  await run('settings', 'readwrite', (s) => {
+    s.put(Date.now(), 'likesAt');
+    return s.put([...likes], 'likes');
+  });
+  changed('meta', 'likes');
   return likes.has(characterId);
 }
 
 // ---- Backup & restore ----
 
-const readAll = async (store) => {
+export const readAll = async (store) => {
   const db = await open();
   return new Promise((resolve, reject) => {
     const req = db.transaction(store).objectStore(store).getAll();
@@ -236,5 +285,15 @@ export async function importAll(data) {
       req.onsuccess = () => settingsStore.put([...new Set([...(req.result ?? []), ...data.likes.filter((id) => typeof id === 'string')])], 'likes');
     }
   });
+  for (const c of characters) changed('characters', c.id);
+  for (const chat of chats) changed('chats', chat.id);
+  for (const m of memories) changed('memories', m.id);
+  for (const id of ['profile', 'stats', 'likes']) changed('meta', id);
   return { characters: characters.length, chats: chats.length, memories: memories.length };
 }
+
+// ---- Raw access (used by sync; no timestamps added, no change hook) ----
+
+export const rawGet = (store, id) => run(store, 'readonly', (s) => s.get(id));
+export const rawPut = (store, record) => run(store, 'readwrite', (s) => s.put(record));
+export const rawDelete = (store, id) => run(store, 'readwrite', (s) => s.delete(id));

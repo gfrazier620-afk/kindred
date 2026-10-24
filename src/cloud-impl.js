@@ -18,6 +18,12 @@ function boot() {
   db = getFirestore(app);
 }
 
+/** The shared Firebase connection (used by sync too). */
+export function firebase() {
+  boot();
+  return { auth, db };
+}
+
 /** Signs in quietly (no account needed) and returns the user. Each device gets its own identity. */
 export async function ensureUser() {
   boot();

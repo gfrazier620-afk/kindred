@@ -23,14 +23,22 @@ export async function loadStats() {
   ]);
 
   let stored = await getStats();
-  if (!stored?.initialized) {
+  if (!stored?.initialized || !Number.isFinite(stored.joinedAt)) {
     const real = (ts) => (ts > 1e12 ? ts : Infinity);
     const earliest = Math.min(...chats.map((c) => real(c.createdAt)), ...characters.map((c) => real(c.createdAt)));
-    stored = {
-      initialized: true,
+    // Counts rebuilt from your chats never replace a higher lifetime number already saved.
+    const before = stored ?? {};
+    const counted = {
       messagesSent: chats.reduce((n, c) => n + c.messages.filter((m) => m.role === 'user').length, 0),
       repliesReceived: chats.reduce((n, c) => n + c.messages.filter((m, i) => m.role === 'assistant' && i > 0).length, 0),
       chatsStarted: chats.length,
+    };
+    stored = {
+      ...before,
+      initialized: true,
+      messagesSent: Math.max(before.messagesSent ?? 0, counted.messagesSent),
+      repliesReceived: Math.max(before.repliesReceived ?? 0, counted.repliesReceived),
+      chatsStarted: Math.max(before.chatsStarted ?? 0, counted.chatsStarted),
       joinedAt: Number.isFinite(earliest) ? earliest : Date.now(),
     };
     await setStats(stored);

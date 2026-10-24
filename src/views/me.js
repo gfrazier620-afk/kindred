@@ -1,6 +1,7 @@
 import { getSettings, saveSettings } from '../db.js';
 import { loadStats } from '../stats.js';
 import { cloudEnabled, myPublished } from '../cloud.js';
+import { mountAccount } from './account.js';
 import { esc, avatarHtml, icon, $, toast, resizeImage } from '../util.js';
 
 const fmt = (n) => Number(n ?? 0).toLocaleString();
@@ -66,6 +67,8 @@ export async function renderMe(app, editing = false) {
           : ''
       }
 
+      <section class="panel" id="account"></section>
+
       <section class="panel">
         <h2>Your stats</h2>
         <div class="tiles">
@@ -89,6 +92,8 @@ export async function renderMe(app, editing = false) {
       <a class="panel link-row" href="#/settings">${icon('gear')}<span>Settings<br><span class="muted small">API key, model, reply length</span></span></a>
     </main>`;
 
+  const stopAccount = mountAccount($('#account'));
+
   // Community numbers fill in when they arrive; the rest of the page doesn't wait for them.
   if (cloudEnabled() && !editing) {
     myPublished()
@@ -105,7 +110,7 @@ export async function renderMe(app, editing = false) {
 
   if (!editing) {
     $('#edit').addEventListener('click', () => renderMe(app, true));
-    return;
+    return stopAccount;
   }
 
   // ---- Editing ----

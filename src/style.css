@@ -596,3 +596,12 @@ body.no-scroll { overflow: hidden; }
 
 .msg-tools { flex-wrap: wrap; row-gap: 2px; }
 .msg-body { min-width: 0; }
+
+/* ---------- Account & sync ---------- */
+.account-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 6px; }
+.account-row { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+.account-row strong { word-break: break-all; }
+.account-dot { width: 10px; height: 10px; border-radius: 50%; background: #7ddc8a; box-shadow: 0 0 10px rgba(125, 220, 138, 0.6); flex: none; }
+.account-dot.bad { background: var(--danger); box-shadow: 0 0 10px rgba(255, 107, 107, 0.6); }
+#account-error, #email-msg { color: var(--danger); min-height: 1.2em; }
+#account-error:empty, #email-msg:empty { display: none; }

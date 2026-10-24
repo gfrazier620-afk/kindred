@@ -17,6 +17,13 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function ownsSyncData(uid, kind) {
+      return signedIn()
+        && request.auth.uid == uid
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && kind in ['characters', 'chats', 'memories', 'meta'];
+    }
+
     function text(value, max) {
       return value is string && value.size() <= max;
     }
@@ -92,6 +99,17 @@ service cloud.firestore {
           && request.resource.data.at == request.time;
         allow delete: if signedIn() && request.auth.uid == uid;
       }
+    }
+
+    // Each signed-in person's own synced copy of their characters, chats and memories.
+    // Only they can read or write it, and not anonymous visitors.
+    //
+    //   users/{uid}/characters/{id}   users/{uid}/chats/{id}
+    //   users/{uid}/memories/{id}     users/{uid}/meta/{profile|stats|likes}
+    match /users/{uid}/{kind}/{docId} {
+      allow read, delete: if ownsSyncData(uid, kind);
+      allow create, update: if ownsSyncData(uid, kind)
+        && request.resource.data.updatedAt is number;
     }
 
     match /reports/{reportId} {
