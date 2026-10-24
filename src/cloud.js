@@ -18,16 +18,40 @@ export function __useFake(fake) {
   clearCommunityCache();
 }
 
-let cache = { at: 0, list: null };
-export const clearCommunityCache = () => (cache = { at: 0, list: null });
+const PAGE = 40;
+let cache = { at: 0, list: null, more: false };
+export const clearCommunityCache = () => (cache = { at: 0, list: null, more: false });
 
 /** Public characters, newest first. Cached for a minute so switching tabs doesn't refetch. */
+let pending = null; // a fetch already under way, so quick tab switches don't ask twice
 export async function getCommunity({ force = false } = {}) {
   if (!cloudEnabled()) return null;
   if (!force && cache.list && Date.now() - cache.at < 60000) return cache.list;
-  const list = await (await load()).fetchCommunity({ max: 40 });
-  cache = { at: Date.now(), list };
-  return list;
+  if (pending) return pending;
+  pending = (async () => {
+    try {
+      const list = await (await load()).fetchCommunity({ max: PAGE });
+      cache = { at: Date.now(), list, more: list.length >= PAGE };
+      return list;
+    } finally {
+      pending = null;
+    }
+  })();
+  return pending;
+}
+
+/** True when the last page was full, so there are probably older characters to load. */
+export const hasMoreCommunity = () => !!cache.more;
+
+/** Loads the next page of older characters and adds it to the list. */
+export async function loadMoreCommunity() {
+  if (!cache.list?.length) return cache.list;
+  const oldest = cache.list[cache.list.length - 1].createdAt;
+  const page = await (await load()).fetchCommunity({ max: PAGE, beforeMs: oldest });
+  const have = new Set(cache.list.map((c) => c.remoteId));
+  cache.list = [...cache.list, ...page.filter((c) => !have.has(c.remoteId))];
+  cache.more = page.length >= PAGE;
+  return cache.list;
 }
 
 export async function publish(character, creatorName) {

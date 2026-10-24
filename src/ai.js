@@ -260,3 +260,75 @@ Reply with only the summary.`;
     .trim();
   return text || null;
 }
+
+const CHARACTER_SCHEMA = {
+  type: 'object',
+  properties: {
+    name: { type: 'string' },
+    tagline: { type: 'string' },
+    bio: { type: 'string' },
+    personality: { type: 'string' },
+    traits: { type: 'array', items: { type: 'string' } },
+    tags: { type: 'array', items: { type: 'string' } },
+    stats: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { name: { type: 'string' }, value: { type: 'integer' } },
+        required: ['name', 'value'],
+        additionalProperties: false,
+      },
+    },
+    scenario: { type: 'string' },
+    greeting: { type: 'string' },
+    examples: { type: 'string' },
+  },
+  required: ['name', 'tagline', 'bio', 'personality', 'traits', 'tags', 'stats', 'scenario', 'greeting', 'examples'],
+  additionalProperties: false,
+};
+
+/** Drafts a whole character from a one-line idea. Returns the draft, or null if Claude declined. */
+export async function generateCharacter({ settings, idea }) {
+  const prompt = `Design an original character for a roleplay chat app, based on this idea from the person creating them:
+
+<idea>
+${idea.slice(0, 600)}
+</idea>
+
+Fill in every field:
+- name: memorable, fits the idea.
+- tagline: one line, under 100 characters, shown on their card.
+- bio: 3 to 4 sentences of backstory: who they are, where they come from, what they want.
+- personality: 2 to 3 sentences on how they talk and act, including a quirk or two.
+- traits: 3 to 5 short personality traits, one or two words each.
+- tags: 2 to 4 genre or vibe tags, like Fantasy, Cozy, Sci-fi, Comedy.
+- stats: 3 to 5 personality ratings from 0 to 100 that suit them (like Courage, Humor, Patience).
+- scenario: where and when the chat begins, in a sentence or two. Use {{user}} for the person chatting.
+- greeting: the character's opening message, 1 to 3 sentences. Format it like a story told in quick texts: actions in plain present-tense narration with no asterisks, and anything the character says out loud in "double quotes".
+- examples: two short sample exchanges in this format, one per line:
+{{user}}: "Hi!"
+{{char}}: He grins. "Took you long enough."
+
+Make the character feel specific and alive, not generic. Keep it suitable for a general audience and never include sexual content.`;
+
+  const response = await makeClient(settings).beta.messages.parse(
+    withFallbacks({
+      model: settings.model,
+      max_tokens: 16000,
+      messages: [{ role: 'user', content: prompt }],
+      output_config: { effort: 'medium', format: betaJSONSchemaOutputFormat(CHARACTER_SCHEMA) },
+    }),
+  );
+  if (response.stop_reason === 'refusal' || !response.parsed_output) return null;
+  return response.parsed_output;
+}
+
+/** Checks that a key (and model) works with one tiny request. Throws a friendly-able error if not. */
+export async function testKey({ settings }) {
+  await makeClient(settings).beta.messages.create({
+    model: settings.model,
+    max_tokens: 200,
+    messages: [{ role: 'user', content: 'Reply with the single word: ready' }],
+    output_config: { effort: 'low' },
+  });
+}

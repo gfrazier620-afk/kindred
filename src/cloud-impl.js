@@ -4,6 +4,7 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import {
   getFirestore, collection, doc, query, orderBy, limit, where,
   getDocs, getDoc, setDoc, updateDoc, addDoc, deleteDoc, writeBatch, increment, serverTimestamp,
+  startAfter, Timestamp,
 } from 'firebase/firestore';
 import { firebaseConfig } from './firebase-config.js';
 
@@ -106,9 +107,11 @@ function fromDoc(snapshot) {
 
 // ---- Public API (called through cloud.js) ----
 
-export async function fetchCommunity({ max = 40 } = {}) {
+export async function fetchCommunity({ max = 40, beforeMs } = {}) {
   boot(); // reading is public, so no sign-in is needed just to browse
-  const snap = await getDocs(query(collection(db, 'characters'), orderBy('createdAt', 'desc'), limit(max)));
+  // beforeMs continues from where the last page ended ("load more").
+  const cursor = beforeMs ? [startAfter(Timestamp.fromMillis(beforeMs))] : [];
+  const snap = await getDocs(query(collection(db, 'characters'), orderBy('createdAt', 'desc'), ...cursor, limit(max)));
   return snap.docs.map(fromDoc);
 }
 

@@ -153,3 +153,82 @@ export async function toggleLike(characterId) {
   await run('settings', 'readwrite', (s) => s.put([...likes], 'likes'));
   return likes.has(characterId);
 }
+
+// ---- Backup & restore ----
+
+const readAll = async (store) => {
+  const db = await open();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(store).objectStore(store).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+};
+
+/** Everything on this device in one object. Your API key is left out on purpose. */
+export async function exportAll() {
+  const [characters, chats, memories, settings, stats, likes] = await Promise.all([
+    readAll('characters'),
+    readAll('chats'),
+    readAll('memories'),
+    getSettings(),
+    getStats(),
+    getLikes(),
+  ]);
+  const { apiKey, seeded, starterVersion, ...shareable } = settings;
+  return { kindredBackup: 1, exportedAt: Date.now(), characters, chats, memories, settings: shareable, stats: stats ?? null, likes };
+}
+
+/**
+ * Adds a backup's contents to this device. Records with the same id are replaced; nothing else is
+ * deleted. Your current API key is kept, and counters keep whichever number is higher.
+ * Returns how many characters, chats and memories came in.
+ */
+export async function importAll(data) {
+  if (data?.kindredBackup !== 1) throw new Error("That file isn't a Kindred backup.");
+  const withId = (list) => (Array.isArray(list) ? list.filter((item) => item && typeof item.id === 'string') : []);
+  const characters = withId(data.characters);
+  const chats = withId(data.chats).filter((chat) => Array.isArray(chat.messages));
+  const memories = withId(data.memories);
+
+  const db = await open();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(['characters', 'chats', 'memories', 'settings'], 'readwrite');
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+
+    for (const c of characters) tx.objectStore('characters').put(c);
+    for (const chat of chats) tx.objectStore('chats').put(chat);
+    for (const m of memories) tx.objectStore('memories').put(m);
+
+    const settingsStore = tx.objectStore('settings');
+
+    if (data.settings && typeof data.settings === 'object') {
+      const req = settingsStore.get('settings');
+      req.onsuccess = () => {
+        const current = req.result ?? {};
+        settingsStore.put({ ...current, ...data.settings, apiKey: current.apiKey ?? '', seeded: current.seeded, starterVersion: current.starterVersion }, 'settings');
+      };
+    }
+
+    if (data.stats && typeof data.stats === 'object') {
+      const req = settingsStore.get('stats');
+      req.onsuccess = () => {
+        const current = req.result ?? {};
+        const merged = { ...current, initialized: true };
+        for (const [key, value] of Object.entries(data.stats)) {
+          if (typeof value !== 'number') continue;
+          merged[key] = key === 'joinedAt' ? Math.min(current[key] ?? value, value) : Math.max(current[key] ?? 0, value);
+        }
+        settingsStore.put(merged, 'stats');
+      };
+    }
+
+    if (Array.isArray(data.likes)) {
+      const req = settingsStore.get('likes');
+      req.onsuccess = () => settingsStore.put([...new Set([...(req.result ?? []), ...data.likes.filter((id) => typeof id === 'string')])], 'likes');
+    }
+  });
+  return { characters: characters.length, chats: chats.length, memories: memories.length };
+}

@@ -4,6 +4,11 @@ A Character.AI / Chai–style app: make a character with a photo, bio, personali
 
 ## Features
 
+- **Build with AI** — describe a character in a sentence and Claude drafts the name, backstory, personality, stats and opening line for you to tweak.
+- **Backup & restore** — Settings → Your data downloads one file with your characters, chats, memories and profile (never your API key) and restores it on any device.
+- **Chat tools** — edit or copy any message, message times and day dividers, a jump-to-latest button, and Clear chat / Delete conversation in the chat menu.
+- **Smoother feed** — loading placeholders, pull to refresh, and Load more.
+
 - **Community (optional)** — share your characters with everyone and browse what others made, with likes and reporting. Needs a free Firebase project: see [FIREBASE_SETUP.md](FIREBASE_SETUP.md). Without one, Kindred works exactly as before.
 
 - **Five tabs** — **Home** is a social-style feed of characters (with a "continue chatting" row on top), **Search** finds anyone by name, trait, tag or creator, **Create** holds the character creator and everything you have made, **Messages** lists your conversations, and **Profile** shows your nickname, bio and stats (messages sent, chats, characters created and more).

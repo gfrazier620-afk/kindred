@@ -1,4 +1,5 @@
-import { getCharacter, saveCharacter, uid } from '../db.js';
+import { getCharacter, saveCharacter, getSettings, uid } from '../db.js';
+import { generateCharacter, friendlyError } from '../ai.js';
 import { cloudEnabled } from '../cloud.js';
 import { shareCharacter, unshareCharacter } from '../share.js';
 import { esc, avatarHtml, icon, $, toast, resizeImage } from '../util.js';
@@ -49,6 +50,13 @@ export async function renderEditor(app, id) {
             <button type="button" class="btn ghost" id="remove-photo" ${c.photo ? '' : 'hidden'}>Remove</button>
           </div>
         </div>
+
+        <section class="panel ai-panel">
+          <h2>Build with AI</h2>
+          <p class="field-hint">Describe your idea in a sentence or two and Claude fills in everything below. You can change anything afterwards.</p>
+          <textarea id="idea" rows="2" maxlength="500" placeholder="A grumpy dragon who runs a library and secretly loves poetry"></textarea>
+          <button type="button" class="btn primary" id="build">${icon('spark')} Build character</button>
+        </section>
 
         <section class="panel">
           <h2>Basics</h2>
@@ -198,6 +206,45 @@ export async function renderEditor(app, id) {
     $('#stats .stat-row:last-child .stat-name').focus();
   });
   renderStats();
+
+  // ---- Build with AI ----
+  $('#build').addEventListener('click', async (e) => {
+    const button = e.currentTarget;
+    const idea = $('#idea').value.trim();
+    if (!idea) {
+      toast('Describe your character first.', 'error');
+      $('#idea').focus();
+      return;
+    }
+    const settings = await getSettings();
+    if (!settings.apiKey) {
+      toast('Add your Claude API key in Settings first.', 'error');
+      return;
+    }
+    if (form.name.value.trim() && !confirm('This replaces what you have written so far. Continue?')) return;
+
+    const label = button.innerHTML;
+    button.disabled = true;
+    button.textContent = 'Building…';
+    try {
+      const draft = await generateCharacter({ settings, idea });
+      if (!draft) throw new Error('Claude declined that idea. Try describing it a different way.');
+      for (const key of ['name', 'tagline', 'bio', 'personality', 'scenario', 'greeting', 'examples']) form[key].value = draft[key] ?? '';
+      form.tags.value = (draft.tags ?? []).join(', ');
+      c.traits = (draft.traits ?? []).slice(0, 8);
+      c.stats = (draft.stats ?? []).slice(0, 8).map((s) => ({ name: s.name, value: Math.max(0, Math.min(100, Math.round(s.value))) }));
+      renderTraits();
+      renderStats();
+      if (!c.photo) refreshPhoto();
+      toast('Drafted. Change anything you like, then Save.');
+      form.name.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    } catch (err) {
+      toast(friendlyError(err), 'error');
+    } finally {
+      button.disabled = false;
+      button.innerHTML = label;
+    }
+  });
 
   // ---- Save ----
   form.addEventListener('submit', async (e) => {

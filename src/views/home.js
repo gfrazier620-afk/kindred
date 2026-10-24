@@ -1,6 +1,6 @@
 import { listCharacters, listAllChats, getSettings, getLikes, toggleLike } from '../db.js';
 import { creatorOf } from '../stats.js';
-import { cloudEnabled, getCommunity, setLike, report } from '../cloud.js';
+import { cloudEnabled, getCommunity, hasMoreCommunity, loadMoreCommunity, setLike, report } from '../cloud.js';
 import { mergeFeed, adoptCommunityCharacter } from '../share.js';
 import { esc, avatarHtml, icon, $, $$, formatMessage, timeAgo, fillNames, toast } from '../util.js';
 import { logoSvg } from '../logo.js';
@@ -12,6 +12,14 @@ const FILTERS = [
   ['liked', 'Liked'],
 ];
 let filter = 'foryou'; // remembered while the app is open
+
+// Grey placeholder cards shown while the community loads.
+const SKELETON = `
+  <div class="post skeleton" aria-hidden="true">
+    <div class="sk-head"><span class="sk-circle"></span><span class="sk-lines"><i></i><i></i></span></div>
+    <i class="sk-block"></i>
+    <i class="sk-line"></i>
+  </div>`;
 
 const excerpt = (text, max = 190) => (text.length > max ? `${text.slice(0, max).trimEnd()}…` : text);
 
@@ -25,6 +33,9 @@ export async function renderHome(app) {
   const liked = new Set(likedIds);
   let remote = null; // community posts, once they arrive
   let gone = false; // set when you leave this screen
+  let loading = false; // the community is being fetched
+  let canMore = false; // there are older posts to load
+  let loadingMore = false;
 
   // The latest chat per character, newest first: powers "Continue" and the stories row.
   const lastChat = new Map();
@@ -112,7 +123,11 @@ export async function renderHome(app) {
     if (gone) return;
     items = mergeFeed(local, remote);
     const list = feed();
-    $('#feed').innerHTML = list.length ? list.map(post).join('') : empty();
+    const showMore = canMore && !loading && filter !== 'liked';
+    $('#feed').innerHTML =
+      (list.length ? list.map(post).join('') : loading ? '' : empty()) +
+      (loading ? SKELETON.repeat(2) : '') +
+      (showMore ? `<button type="button" class="btn load-more" data-more ${loadingMore ? 'disabled' : ''}>${loadingMore ? 'Loading…' : 'Load more'}</button>` : '');
     for (const btn of $$('[data-filter]')) btn.classList.toggle('on', btn.dataset.filter === filter);
   };
 
@@ -122,15 +137,18 @@ export async function renderHome(app) {
   };
 
   async function loadCommunity(force = false) {
-    if (!cloudEnabled()) return;
-    setNote('Loading the community…');
+    if (!cloudEnabled() || loading) return;
+    loading = true;
+    setNote('');
+    draw();
     try {
       remote = await getCommunity({ force });
-      setNote('');
+      canMore = hasMoreCommunity();
     } catch (err) {
       console.warn('Community failed to load', err);
       setNote("Couldn't load the community right now. Showing what's on this device.");
     }
+    loading = false;
     draw();
   }
 
@@ -140,6 +158,16 @@ export async function renderHome(app) {
       ${cloudEnabled() ? `<button type="button" class="icon-btn" id="refresh" title="Refresh">${icon('refresh')}</button>` : ''}
     </header>
     <main class="page narrow">
+      <div class="ptr" id="ptr" aria-hidden="true"><span>Pull to refresh</span></div>
+      ${
+        settings.apiKey
+          ? ''
+          : `<section class="setup-card">
+          <h2>One quick step to start chatting</h2>
+          <p>Kindred uses your own Claude API key so replies cost you only fractions of a cent. Setting it up takes about two minutes.</p>
+          <a class="btn primary" href="#/settings">Set up my key</a>
+        </section>`
+      }
       ${
         recent.length
           ? `<section class="stories" aria-label="Continue chatting">
@@ -175,6 +203,21 @@ export async function renderHome(app) {
 
     if (e.target.closest('#refresh')) {
       loadCommunity(true);
+      return;
+    }
+
+    if (e.target.closest('[data-more]')) {
+      if (loadingMore) return;
+      loadingMore = true;
+      draw();
+      try {
+        remote = await loadMoreCommunity();
+        canMore = hasMoreCommunity();
+      } catch (err) {
+        toast(`Couldn't load more: ${err.message}`, 'error');
+      }
+      loadingMore = false;
+      draw();
       return;
     }
 
@@ -238,8 +281,40 @@ export async function renderHome(app) {
   };
   app.addEventListener('click', onClick);
 
+  // ---- Pull to refresh (touch screens, when you're at the very top) ----
+  const indicator = $('#ptr');
+  const THRESHOLD = 110;
+  let startY = null;
+  let pulled = 0;
+  const onTouchStart = (e) => {
+    startY = cloudEnabled() && window.scrollY <= 0 && !loading ? e.touches[0].clientY : null;
+    pulled = 0;
+  };
+  const onTouchMove = (e) => {
+    if (startY === null) return;
+    pulled = Math.max(0, e.touches[0].clientY - startY);
+    indicator.style.height = `${Math.min(pulled * 0.5, 56)}px`;
+    indicator.classList.toggle('ready', pulled > THRESHOLD);
+    indicator.firstElementChild.textContent = pulled > THRESHOLD ? 'Release to refresh' : 'Pull to refresh';
+  };
+  const onTouchEnd = () => {
+    if (startY === null) return;
+    const go = pulled > THRESHOLD;
+    startY = null;
+    pulled = 0;
+    indicator.style.height = '';
+    indicator.classList.remove('ready');
+    if (go) loadCommunity(true);
+  };
+  document.addEventListener('touchstart', onTouchStart, { passive: true });
+  document.addEventListener('touchmove', onTouchMove, { passive: true });
+  document.addEventListener('touchend', onTouchEnd, { passive: true });
+
   return () => {
     gone = true;
     app.removeEventListener('click', onClick);
+    document.removeEventListener('touchstart', onTouchStart);
+    document.removeEventListener('touchmove', onTouchMove);
+    document.removeEventListener('touchend', onTouchEnd);
   };
 }
