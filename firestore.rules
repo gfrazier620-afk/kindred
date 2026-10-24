@@ -33,7 +33,7 @@ service cloud.firestore {
       return d.keys().hasOnly([
           'name', 'tagline', 'bio', 'personality', 'traits', 'tags', 'stats', 'scenario',
           'greeting', 'examples', 'photo', 'creatorUid', 'creatorName', 'createdAt',
-          'updatedAt', 'likeCount'
+          'updatedAt', 'likeCount', 'rating'
         ])
         && text(d.name, 60) && d.name.size() > 0
         && text(d.get('tagline', ''), 160)
@@ -44,6 +44,7 @@ service cloud.firestore {
         && text(d.get('examples', ''), 2000)
         && text(d.get('photo', ''), 80000)
         && text(d.get('creatorName', ''), 40)
+        && d.get('rating', 'general') in ['general', 'mature']
         && d.get('traits', []) is list && d.get('traits', []).size() <= 12
         && d.get('tags', []) is list && d.get('tags', []).size() <= 8
         && d.get('stats', []) is list && d.get('stats', []).size() <= 12

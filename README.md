@@ -4,6 +4,7 @@ A Character.AI / Chai–style app: make a character with a photo, bio, personali
 
 ## Features
 
+- **18+ ratings** — creators can rate a character Mature (18+). Mature characters stay hidden, and need a one-time "I'm 18 or older" confirmation, until someone confirms (and can be hidden again in Settings).
 - **Accounts and sync** — sign in with Google or email to keep characters, chats and memories the same on every device. See [FIREBASE_SETUP.md](FIREBASE_SETUP.md).
 - **Swipe replies** — Retry keeps the old reply; flip between versions with the ‹ › arrows and the chat uses the one you pick.
 - **Personas** — add different versions of yourself in Settings and choose who you are per chat from the chat menu.

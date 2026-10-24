@@ -2,6 +2,7 @@ import { listCharacters, listAllChats, getSettings, getLikes, toggleLike } from 
 import { creatorOf } from '../stats.js';
 import { cloudEnabled, getCommunity, hasMoreCommunity, loadMoreCommunity, setLike, report } from '../cloud.js';
 import { mergeFeed, adoptCommunityCharacter } from '../share.js';
+import { isMature, isAdult, canViewMature, confirmAdult, matureNotice } from '../age.js';
 import { esc, avatarHtml, icon, $, $$, formatMessage, timeAgo, fillNames, toast } from '../util.js';
 import { logoSvg } from '../logo.js';
 
@@ -31,6 +32,8 @@ export async function renderHome(app) {
     getLikes(),
   ]);
   const liked = new Set(likedIds);
+  // Mature (18+) characters stay out of sight until the person confirms their age.
+  const visible = (c) => !isMature(c) || canViewMature(settings);
   let remote = null; // community posts, once they arrive
   let gone = false; // set when you leave this screen
   let loading = false; // the community is being fetched
@@ -46,7 +49,7 @@ export async function renderHome(app) {
   const byId = new Map(local.map((c) => [c.id, c]));
   const recent = [...lastChat.values()]
     .sort((a, b) => b.updatedAt - a.updatedAt)
-    .filter((chat) => byId.has(chat.characterId))
+    .filter((chat) => byId.has(chat.characterId) && visible(byId.get(chat.characterId)))
     .slice(0, 14);
 
   const stamp = (item) => item.c.createdAt ?? 0;
@@ -54,7 +57,7 @@ export async function renderHome(app) {
   let items = mergeFeed(local, remote);
 
   const feed = () => {
-    let list = items.slice();
+    let list = items.filter((i) => visible(i.c));
     if (filter === 'liked') list = list.filter((i) => liked.has(i.c.id));
     if (filter === 'new') list.sort((a, b) => stamp(b) - stamp(a));
     if (filter === 'popular') list.sort((a, b) => likes(b) - likes(a) || stamp(b) - stamp(a));
@@ -122,6 +125,9 @@ export async function renderHome(app) {
   const draw = () => {
     if (gone) return;
     items = mergeFeed(local, remote);
+    const hidden = items.filter((i) => !visible(i.c)).length;
+    const notice = $('#mature-note');
+    if (notice) notice.innerHTML = matureNotice(hidden, isAdult(settings));
     const list = feed();
     const showMore = canMore && !loading && filter !== 'liked';
     $('#feed').innerHTML =
@@ -183,6 +189,7 @@ export async function renderHome(app) {
         </section>`
           : ''
       }
+      <div id="mature-note"></div>
       <div class="seg" role="tablist">
         ${FILTERS.map(([key, label]) => `<button type="button" role="tab" data-filter="${key}">${label}</button>`).join('')}
       </div>
@@ -194,6 +201,12 @@ export async function renderHome(app) {
   loadCommunity();
 
   const onClick = async (e) => {
+    if (e.target.closest('[data-confirm-adult]')) {
+      await confirmAdult();
+      window.dispatchEvent(new HashChangeEvent('hashchange')); // redraw with the new setting
+      return;
+    }
+
     const tab = e.target.closest('[data-filter]');
     if (tab) {
       filter = tab.dataset.filter;
@@ -239,7 +252,7 @@ export async function renderHome(app) {
 
     const flag = e.target.closest('[data-report]');
     if (flag) {
-      const reason = prompt('What\'s wrong with this character? (e.g. inappropriate, spam, hateful)');
+      const reason = prompt('What\'s wrong with this character? (e.g. inappropriate, spam, hateful, wrong rating)');
       if (!reason?.trim()) return;
       try {
         await report(flag.dataset.report, reason);

@@ -1,6 +1,7 @@
 import { getCharacter, getChat, listChats, saveChat, deleteChat, getSettings, listMemories, bumpStats, uid } from '../db.js';
 import { streamReply, friendlyError, isAbortError } from '../ai.js';
 import { updateMemory, liveMessages, addMemory } from '../memory.js';
+import { isMature, isAdult, confirmAdult } from '../age.js';
 import { allPersonas, resolvePersona, asPersona } from '../personas.js';
 import { canSpeak, canDictate, speak, stopSpeaking, unlockSpeech, listen } from '../voice.js';
 import { esc, avatarHtml, icon, $, formatMessage, toast, copyText, openModal } from '../util.js';
@@ -25,6 +26,16 @@ export async function renderChat(app, characterId, chatId) {
   if (!character) {
     location.hash = '#/';
     return;
+  }
+
+  // Mature (18+) characters need the age confirmation, even when opened from a link or an old chat.
+  if (isMature(character) && !isAdult(settings)) {
+    if (!(await confirmAdult({ name: character.name }))) {
+      if (history.length > 1) history.back();
+      else location.hash = '#/';
+      return;
+    }
+    Object.assign(settings, await getSettings());
   }
 
   let chat = chatId && chatId !== 'new' ? await getChat(chatId) : null;

@@ -175,7 +175,7 @@ export async function copyText(text) {
 /**
  * A simple popup. Pass the inner HTML; returns { el, close }. Tapping outside or pressing Esc closes it.
  */
-export function openModal(html, { label = 'Dialog' } = {}) {
+export function openModal(html, { label = 'Dialog', onClose } = {}) {
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
   backdrop.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-label="${esc(label)}">${html}</div>`;
@@ -183,11 +183,15 @@ export function openModal(html, { label = 'Dialog' } = {}) {
   document.body.classList.add('no-scroll');
   requestAnimationFrame(() => backdrop.classList.add('show'));
 
+  let closed = false;
   const close = () => {
+    if (closed) return;
+    closed = true;
     document.removeEventListener('keydown', onKey);
     document.body.classList.remove('no-scroll');
     backdrop.classList.remove('show');
     setTimeout(() => backdrop.remove(), 180);
+    onClose?.();
   };
   const onKey = (e) => e.key === 'Escape' && close();
   document.addEventListener('keydown', onKey);

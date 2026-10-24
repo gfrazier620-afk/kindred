@@ -4,7 +4,7 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import {
   getFirestore, collection, doc, query, orderBy, limit, where,
   getDocs, getDoc, setDoc, updateDoc, addDoc, deleteDoc, writeBatch, increment, serverTimestamp,
-  startAfter, Timestamp,
+  startAfter, Timestamp, deleteField,
 } from 'firebase/firestore';
 import { firebaseConfig } from './firebase-config.js';
 
@@ -62,6 +62,8 @@ function toPublic(c, creatorName) {
       value: Math.max(0, Math.min(100, Math.round(Number(s.value) || 0))),
     })),
     creatorName: clip(creatorName, 40),
+    // Only written for mature characters, so General characters share exactly as they always have.
+    ...(c.rating === 'mature' ? { rating: 'mature' } : {}),
   };
 }
 
@@ -104,6 +106,7 @@ function fromDoc(snapshot) {
     tags: d.tags ?? [],
     stats: d.stats ?? [],
     photo: d.photo ?? '',
+    rating: d.rating === 'mature' ? 'mature' : 'general',
     creator: d.creatorName || 'Someone',
     creatorUid: d.creatorUid,
     likeCount: d.likeCount ?? 0,
@@ -123,12 +126,26 @@ export async function fetchCommunity({ max = 40, beforeMs } = {}) {
 
 /** Shares a character (or updates it if it's already shared). Returns the public id. */
 export async function publishCharacter(c, creatorName) {
+  try {
+    return await publishCharacterNow(c, creatorName);
+  } catch (err) {
+    // Mature characters use a field that older security rules don't know about.
+    if (err.code === 'permission-denied' && c.rating === 'mature') {
+      throw new Error('Sharing a mature (18+) character needs the latest Firestore rules. Publish firestore.rules from the repo (see FIREBASE_SETUP.md), then try again.');
+    }
+    throw err;
+  }
+}
+
+async function publishCharacterNow(c, creatorName) {
   const user = await ensureUser();
   const data = { ...toPublic(c, creatorName), photo: await shrinkPhoto(c.photo) };
 
   if (c.publishedId) {
     try {
-      await updateDoc(doc(db, 'characters', c.publishedId), { ...data, updatedAt: serverTimestamp() });
+      // If it used to be mature and isn't any more, remove the field rather than leave it behind.
+      const rating = c.rating === 'mature' ? {} : { rating: deleteField() };
+      await updateDoc(doc(db, 'characters', c.publishedId), { ...data, ...rating, updatedAt: serverTimestamp() });
       return c.publishedId;
     } catch (err) {
       // Deleted elsewhere? Fall through and share it again. Anything else is a real error.

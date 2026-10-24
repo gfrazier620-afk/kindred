@@ -2,6 +2,7 @@ import { getCharacter, saveCharacter, getSettings, uid } from '../db.js';
 import { generateCharacter, friendlyError } from '../ai.js';
 import { cloudEnabled } from '../cloud.js';
 import { shareCharacter, unshareCharacter } from '../share.js';
+import { isAdult, confirmAdult } from '../age.js';
 import { esc, avatarHtml, icon, $, toast, resizeImage } from '../util.js';
 
 const DEFAULT_STATS = [
@@ -92,6 +93,18 @@ export async function renderEditor(app, id) {
           <p class="field-hint">Rate anything from 0 to 100. The AI uses these to shape how they behave.</p>
           <div id="stats" class="stats-editor"></div>
           <button type="button" class="btn ghost" id="add-stat">${icon('plus')} Add stat</button>
+        </section>
+
+        <section class="panel">
+          <h2>Content rating</h2>
+          <label class="check">
+            <input type="radio" name="rating" value="general" ${c.rating === 'mature' ? '' : 'checked'}>
+            <span><strong>General</strong><span class="field-hint">Suitable for everyone. No graphic violence or sexual content.</span></span>
+          </label>
+          <label class="check">
+            <input type="radio" name="rating" value="mature" ${c.rating === 'mature' ? 'checked' : ''}>
+            <span><strong>Mature (18+)</strong><span class="field-hint">May include violence, dark themes, strong language and mature romance. Only people who confirmed they're 18 or older can see it. Sexual content stays non-explicit.</span></span>
+          </label>
         </section>
 
         <section class="panel">
@@ -227,7 +240,7 @@ export async function renderEditor(app, id) {
     button.disabled = true;
     button.textContent = 'Building…';
     try {
-      const draft = await generateCharacter({ settings, idea });
+      const draft = await generateCharacter({ settings, idea, mature: form.rating.value === 'mature' });
       if (!draft) throw new Error('Claude declined that idea. Try describing it a different way.');
       for (const key of ['name', 'tagline', 'bio', 'personality', 'scenario', 'greeting', 'examples']) form[key].value = draft[key] ?? '';
       form.tags.value = (draft.tags ?? []).join(', ');
@@ -246,6 +259,16 @@ export async function renderEditor(app, id) {
     }
   });
 
+  // ---- Content rating ----
+  // Choosing Mature needs the 18+ confirmation; if that's declined it goes back to General.
+  for (const radio of form.querySelectorAll('input[name="rating"]')) {
+    radio.addEventListener('change', async () => {
+      if (form.rating.value !== 'mature') return;
+      const settings = await getSettings();
+      if (!isAdult(settings) && !(await confirmAdult())) form.rating.value = 'general';
+    });
+  }
+
   // ---- Save ----
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -256,6 +279,8 @@ export async function renderEditor(app, id) {
     }
     c.tags = form.tags.value.split(',').map((t) => t.trim()).filter(Boolean);
     c.stats = c.stats.filter((s) => s.name.trim());
+    if (form.rating.value === 'mature') c.rating = 'mature';
+    else delete c.rating; // no rating means General
     if (!c.name) {
       toast('Give your character a name first.', 'error');
       form.name.focus();

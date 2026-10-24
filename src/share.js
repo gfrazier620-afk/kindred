@@ -1,4 +1,5 @@
 import { getCharacter, saveCharacter, getSettings } from './db.js';
+import { isAdult } from './age.js';
 import { publish, unpublish } from './cloud.js';
 
 // The name that goes on a public character.
@@ -26,6 +27,9 @@ export async function unshareCharacter(character) {
 
 /** Turns a community post into a character that can be chatted with on this device. */
 export async function adoptCommunityCharacter(remote) {
+  if (remote.rating === 'mature' && !isAdult(await getSettings())) {
+    throw new Error('This character is rated 18+. Confirm your age first.');
+  }
   const id = `pub-${remote.remoteId}`;
   const existing = await getCharacter(id);
   if (existing) return existing;

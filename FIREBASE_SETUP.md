@@ -75,6 +75,26 @@ How sync behaves:
 - Each person's synced data lives under `users/{their id}` in Firestore, so you can see (and
   delete) it from the console.
 
+## Mature (18+) characters
+
+Creators can rate a character **Mature (18+)** in the editor. Mature characters are hidden from
+everyone who hasn't confirmed they're 18 or older, in Home, Search, Messages, and when opened
+from a link.
+
+- **It's a self-declaration.** People tap "I'm 18 or older". That keeps mature characters out of
+  sight for anyone who says they're under 18, but it is not identity verification. If you need
+  more (some places legally require it for adult services), you'd have to add age verification.
+- **What "mature" means here.** Violence, dark themes, strong language and mature romance.
+  Sexual content stays non-explicit, and the app tells the AI never to write sexual content
+  involving anyone under 18. Claude doesn't write sexually explicit content, so please don't
+  describe Kindred to your users as supporting it.
+- **Sharing mature characters needs the latest rules.** The rating is a new field, so re-publish
+  `firestore.rules` (Firestore Database → Rules → Publish) before anyone shares a mature
+  character. General characters keep working either way.
+- **Moderation.** The report prompt includes "wrong rating". When you review reports, a
+  character that is rated General but isn't can be deleted from **Firestore → characters**, or
+  you can edit its `rating` field to `mature`.
+
 ## Day-to-day
 
 - **Moderation:** anyone can report a character. Reports appear in **Firestore → reports**. To

@@ -605,3 +605,12 @@ body.no-scroll { overflow: hidden; }
 .account-dot.bad { background: var(--danger); box-shadow: 0 0 10px rgba(255, 107, 107, 0.6); }
 #account-error, #email-msg { color: var(--danger); min-height: 1.2em; }
 #account-error:empty, #email-msg:empty { display: none; }
+
+/* ---------- 18+ ---------- */
+.check + .check { margin-top: 12px; }
+.mature-note {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 14px; padding: 10px 12px;
+  border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line); font-size: 14px; color: #c9c9d2;
+}
+.mature-note:empty { display: none; }
+.badge.adult { background: rgba(255, 107, 107, 0.16); color: #ff9a9a; }

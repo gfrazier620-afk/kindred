@@ -140,6 +140,8 @@ const DEFAULT_SETTINGS = {
   voiceRate: 1,
   voiceMode: 'speech',
   autoRead: false,
+  adultConfirmedAt: 0,
+  showMature: true,
 };
 
 export async function getSettings() {

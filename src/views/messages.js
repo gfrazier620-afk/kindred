@@ -1,17 +1,19 @@
-import { listCharacters, listAllChats, deleteChat } from '../db.js';
+import { listCharacters, listAllChats, deleteChat, getSettings } from '../db.js';
+import { isMature, isAdult } from '../age.js';
 import { esc, avatarHtml, icon, timeAgo, toast } from '../util.js';
 
 // Plain-text preview of a message: no *asterisks*, one line.
 const clean = (text) => text.replace(/\*+/g, '').replace(/\s+/g, ' ').trim();
 
 export async function renderMessages(app) {
-  const [characters, chats] = await Promise.all([listCharacters(), listAllChats()]);
+  const [characters, chats, settings] = await Promise.all([listCharacters(), listAllChats(), getSettings()]);
   const byId = new Map(characters.map((c) => [c.id, c]));
 
   // Conversations you've actually joined in on, most recent first. A chat that only has the
   // character's opening line (you opened it and left) isn't a conversation yet.
   const convos = chats
     .filter((chat) => byId.has(chat.characterId) && chat.messages.some((m) => m.role === 'user'))
+    .filter((chat) => !isMature(byId.get(chat.characterId)) || isAdult(settings))
     .sort((a, b) => b.updatedAt - a.updatedAt);
 
   const row = (chat) => {

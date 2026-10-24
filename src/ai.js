@@ -55,6 +55,14 @@ export const REPLY_LENGTHS = {
   long: 'Length: rich, detailed replies are welcome — several paragraphs of description, thoughts and dialogue when the moment calls for it.',
 };
 
+// Content guidance by rating. Mature never means explicit sexual content, and never anything involving minors.
+function contentGuidance(character) {
+  if (character.rating === 'mature') {
+    return `Content: this roleplay is for adults who confirmed they are 18 or older. Violence, dark or disturbing themes, strong language and mature romance are fine when they fit the story. Keep any sexual content non-explicit: imply it and cut away instead of describing it. Never write sexual content involving anyone under 18, and never sexualize a character who is or appears to be a child. If the person pushes for something you won't write, stay in character and steer the scene somewhere else.`;
+  }
+  return 'Content: keep this roleplay suitable for a general audience. No graphic violence and no sexual content. If the person steers toward either, stay in character and gently move the scene elsewhere.';
+}
+
 export function buildSystemPrompt(character, settings) {
   const fill = (text) =>
     (text ?? '').replaceAll('{{char}}', character.name).replaceAll('{{user}}', settings.userName || 'User');
@@ -67,6 +75,7 @@ export function buildSystemPrompt(character, settings) {
 ${character.name} leans against the doorframe, arms crossed. "Took you long enough."
 ${user} writes the same way — plain text is what they do, quoted text is what they say.`,
     REPLY_LENGTHS[settings.replyLength] ?? REPLY_LENGTHS.short,
+    contentGuidance(character),
   ];
 
   if (character.tagline) parts.push(`<tagline>\n${fill(character.tagline)}\n</tagline>`);
@@ -295,7 +304,7 @@ const CHARACTER_SCHEMA = {
 };
 
 /** Drafts a whole character from a one-line idea. Returns the draft, or null if Claude declined. */
-export async function generateCharacter({ settings, idea }) {
+export async function generateCharacter({ settings, idea, mature = false }) {
   const prompt = `Design an original character for a roleplay chat app, based on this idea from the person creating them:
 
 <idea>
@@ -316,7 +325,11 @@ Fill in every field:
 {{user}}: "Hi!"
 {{char}}: He grins. "Took you long enough."
 
-Make the character feel specific and alive, not generic. Keep it suitable for a general audience and never include sexual content.`;
+Make the character feel specific and alive, not generic. ${
+    mature
+      ? 'This character is rated 18+, so darker themes, violence and mature romance are fine, but never include sexual content.'
+      : 'Keep it suitable for a general audience and never include sexual content.'
+  }`;
 
   const response = await makeClient(settings).beta.messages.parse(
     withFallbacks({

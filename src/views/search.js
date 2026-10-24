@@ -2,20 +2,25 @@ import { listCharacters, getSettings } from '../db.js';
 import { creatorOf } from '../stats.js';
 import { cloudEnabled, getCommunity } from '../cloud.js';
 import { mergeFeed, adoptCommunityCharacter } from '../share.js';
+import { isMature, isAdult, canViewMature, confirmAdult, matureNotice } from '../age.js';
 import { esc, avatarHtml, icon, $, $$, toast } from '../util.js';
 
 export async function renderSearch(app) {
   const [local, settings] = await Promise.all([listCharacters(), getSettings()]);
   let remote = null;
   let gone = false;
-  let items = mergeFeed(local, remote);
+  const visible = (c) => !isMature(c) || canViewMature(settings);
+  let hiddenCount = 0;
+  let items = mergeFeed(local, remote).filter(({ c }) => visible(c));
   let haystack = new Map();
   let tags = [];
   let activeTag = null;
 
   // Rebuilt whenever the community list arrives.
   const index = () => {
-    items = mergeFeed(local, remote);
+    const everyone = mergeFeed(local, remote);
+    items = everyone.filter(({ c }) => visible(c));
+    hiddenCount = everyone.length - items.length;
     haystack = new Map(
       items.map(({ c }) => [
         c.id,
@@ -39,6 +44,7 @@ export async function renderSearch(app) {
         <input id="q" type="search" placeholder="Search by name, trait, tag or creator" autocomplete="off" enterkeyhint="search">
       </div>
       <div class="chips tag-row" id="tags"></div>
+      <div id="mature-note"></div>
       <p class="muted small" id="count"></p>
       <div id="results" class="results"></div>
     </main>`;
@@ -52,6 +58,7 @@ export async function renderSearch(app) {
       return tokens.every((t) => text.includes(t));
     });
 
+    $('#mature-note').innerHTML = matureNotice(hiddenCount, isAdult(settings));
     for (const chip of $$('[data-tag]')) chip.classList.toggle('accent', chip.dataset.tag === activeTag);
     $('#count').textContent = tokens.length || activeTag
       ? `${matches.length} ${matches.length === 1 ? 'result' : 'results'}`
@@ -88,6 +95,11 @@ export async function renderSearch(app) {
   $('#q').addEventListener('input', draw);
 
   const onClick = async (e) => {
+    if (e.target.closest('[data-confirm-adult]')) {
+      await confirmAdult();
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+      return;
+    }
     const chip = e.target.closest('[data-tag]');
     if (chip) {
       activeTag = activeTag === chip.dataset.tag ? null : chip.dataset.tag;

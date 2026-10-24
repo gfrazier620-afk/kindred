@@ -1,6 +1,7 @@
 import { getSettings, saveSettings, exportAll, importAll, uid } from '../db.js';
 import { allPersonas } from '../personas.js';
 import { canSpeak, getVoices, speak, stopSpeaking } from '../voice.js';
+import { isAdult, confirmAdult } from '../age.js';
 import { MODELS, testKey, friendlyError } from '../ai.js';
 import { esc, icon, $, toast, downloadJson, openModal } from '../util.js';
 
@@ -86,6 +87,8 @@ export async function renderSettings(app) {
             <textarea name="userPersona" rows="3" placeholder="I'm a traveling bard who…">${esc(s.userPersona)}</textarea>
           </label>
         </section>
+
+        <section class="panel" id="mature-panel"></section>
 
         <section class="panel">
           <h2>Personas</h2>
@@ -205,6 +208,34 @@ export async function renderSettings(app) {
     }
   });
 
+  // ---- Mature (18+) content ----
+  const maturePanel = $('#mature-panel');
+  const drawMature = async () => {
+    const now = await getSettings();
+    maturePanel.innerHTML = isAdult(now)
+      ? `<h2>Mature (18+) content</h2>
+         <p class="field-hint">You confirmed you're 18 or older on ${esc(new Date(now.adultConfirmedAt).toLocaleDateString())}.</p>
+         <label class="check">
+           <input type="checkbox" name="showMature" ${now.showMature === false ? '' : 'checked'}>
+           <span><strong>Show mature (18+) characters</strong><span class="field-hint">In Home and Search. Turn this off to hide them without removing your confirmation.</span></span>
+         </label>
+         <div class="data-actions"><button type="button" class="btn ghost" id="unconfirm">Remove my 18+ confirmation</button></div>`
+      : `<h2>Mature (18+) content</h2>
+         <p class="field-hint">Characters rated 18+ can include violence, dark themes, strong language and mature romance. They stay hidden until you confirm you're 18 or older.</p>
+         <div class="data-actions"><button type="button" class="btn" id="confirm-age">I'm 18 or older</button></div>`;
+  };
+  maturePanel.addEventListener('click', async (e) => {
+    if (e.target.closest('#confirm-age')) {
+      if (await confirmAdult()) await drawMature();
+    } else if (e.target.closest('#unconfirm')) {
+      if (!confirm('Remove your 18+ confirmation? Mature characters will be hidden again until you confirm.')) return;
+      await saveSettings({ ...(await getSettings()), adultConfirmedAt: 0 });
+      toast('18+ confirmation removed');
+      await drawMature();
+    }
+  });
+  drawMature();
+
   // ---- Personas ----
   let personas = [...(s.personas ?? [])];
   let defaultId = s.defaultPersonaId ?? 'default';
@@ -314,6 +345,7 @@ export async function renderSettings(app) {
       replyLength: f.replyLength.value,
       userName: f.userName.value.trim() || 'You',
       userPersona: f.userPersona.value.trim(),
+      ...(f.showMature ? { showMature: f.showMature.checked } : {}),
       ...(canSpeak()
         ? { voiceURI: f.voiceURI.value, voiceRate: Number(f.voiceRate.value), voiceMode: f.voiceMode.value, autoRead: f.autoRead.checked }
         : {}),

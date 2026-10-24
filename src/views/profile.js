@@ -1,6 +1,7 @@
 import { getCharacter, deleteCharacter, listChats, deleteChat, listMemories, getSettings } from '../db.js';
 import { creatorOf } from '../stats.js';
 import { unshareCharacter } from '../share.js';
+import { isMature, isAdult, confirmAdult } from '../age.js';
 import { esc, avatarHtml, icon, $, toast, downloadJson, formatMessage, openPhoto } from '../util.js';
 
 export async function renderProfile(app, id) {
@@ -10,6 +11,17 @@ export async function renderProfile(app, id) {
     return;
   }
   const [chats, memories, settings] = await Promise.all([listChats(id), listMemories(id), getSettings()]);
+  // Mature (18+) characters need the age confirmation, even when opened from a link or an old chat.
+  if (isMature(c) && !isAdult(settings)) {
+    if (!(await confirmAdult({ name: c.name }))) {
+      if (history.length > 1) history.back();
+      else location.hash = '#/';
+      return;
+    }
+    Object.assign(settings, await getSettings());
+  }
+
+
 
   const section = (title, body) =>
     body ? `<section class="panel"><h2>${title}</h2><div class="prose">${formatMessage(body)}</div></section>` : '';

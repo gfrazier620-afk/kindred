@@ -18,7 +18,7 @@ const MAX_BATCH_BYTES = 3_000_000;
 // The parts of your settings that follow you. Never includes your API key.
 const PROFILE_FIELDS = [
   'userName', 'userPersona', 'nickname', 'bio', 'photo', 'personas', 'defaultPersonaId',
-  'model', 'effort', 'replyLength', 'voiceURI', 'voiceRate', 'voiceMode', 'autoRead',
+  'model', 'effort', 'replyLength', 'voiceURI', 'voiceRate', 'voiceMode', 'autoRead', 'adultConfirmedAt', 'showMature',
 ];
 
 // ---- Small helpers around localStorage (it can be blocked, so never trust it) ----
