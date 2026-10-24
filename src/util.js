@@ -15,7 +15,11 @@ export function formatMessage(text) {
     .replace(/\n/g, '<br>');
 }
 
-const HUES = [265, 330, 200, 160, 25, 290, 210, 350];
+// Orange and grey tones for characters without a photo.
+const AVATAR_COLORS = [
+  ['#ff9a3d', '#d9560f'], ['#ff7a1a', '#a8380a'], ['#f08a3e', '#b3470e'], ['#8d909c', '#40424b'],
+  ['#a3a6b3', '#555864'], ['#7a7d8a', '#32343c'], ['#ffa24d', '#c4570f'], ['#6f727f', '#2b2d34'],
+];
 
 export function avatarHtml(character, size = 48) {
   const style = `width:${size}px;height:${size}px`;
@@ -23,9 +27,9 @@ export function avatarHtml(character, size = 48) {
     return `<img class="avatar" style="${style}" src="${character.photo}" alt="">`;
   }
   const name = character?.name || '?';
-  const hue = HUES[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % HUES.length];
+  const [from, to] = AVATAR_COLORS[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
   const initials = name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
-  return `<div class="avatar avatar-initials" style="${style};font-size:${size * 0.38}px;background:linear-gradient(135deg,hsl(${hue} 70% 55%),hsl(${(hue + 40) % 360} 70% 40%))">${esc(initials)}</div>`;
+  return `<div class="avatar avatar-initials" style="${style};font-size:${size * 0.38}px;background:linear-gradient(135deg,${from},${to})">${esc(initials)}</div>`;
 }
 
 // Shrinks an uploaded photo to a square-ish JPEG so it fits comfortably in storage.

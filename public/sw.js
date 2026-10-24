@@ -1,6 +1,6 @@
 // Offline support: the app shell is cached so Kindred opens without a connection.
 // Chats with Claude still need the internet.
-const CACHE = 'kindred-v2';
+const CACHE = 'kindred-v3';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', './index.html', './manifest.webmanifest'])));
