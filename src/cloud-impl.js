@@ -25,6 +25,9 @@ export async function ensureUser() {
   try {
     return (await signInAnonymously(auth)).user;
   } catch (err) {
+    if (err.code === 'auth/configuration-not-found') {
+      throw new Error('Sign-in isn\'t set up yet. In Firebase, open Authentication and click "Get started", then enable Anonymous under Sign-in method.');
+    }
     if (err.code === 'auth/operation-not-allowed' || err.code === 'auth/admin-restricted-operation') {
       throw new Error('Anonymous sign-in is turned off. In Firebase, open Authentication → Sign-in method and enable Anonymous.');
     }
