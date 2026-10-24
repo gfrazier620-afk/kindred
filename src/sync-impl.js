@@ -15,15 +15,22 @@ const describe = (user) => ({
   provider: user.providerData?.[0]?.providerId ?? 'password',
 });
 
-// Turns Firebase's error codes into sentences a person can act on.
-function friendly(err) {
+// Turns Firebase's error codes into sentences a person can act on. `method` says which sign-in
+// was being tried, so "isn't turned on" can name the right switch. The code is kept at the end
+// in brackets so a problem can be pinned down exactly.
+function friendly(err, method = 'sign-in') {
+  const google = method === 'google';
   const messages = {
     'auth/popup-blocked': 'Your browser blocked the sign-in window. Allow pop-ups for this site, or use email instead.',
     'auth/popup-closed-by-user': 'Sign-in was cancelled.',
     'auth/cancelled-popup-request': 'Sign-in was cancelled.',
     'auth/unauthorized-domain':
       "This website isn't allowed to sign in yet. In Firebase, open Authentication → Settings → Authorized domains and add gfrazier620-afk.github.io.",
-    'auth/operation-not-allowed': "That sign-in method isn't turned on. In Firebase, open Authentication → Sign-in method and enable it.",
+    'auth/operation-not-allowed': google
+      ? "Google sign-in isn't turned on for this project. In Firebase: Authentication → Sign-in method → Google → switch Enable on → Save."
+      : "Email and password sign-in isn't turned on. In Firebase: Authentication → Sign-in method → Email/Password. Switch the FIRST Enable toggle on (not just 'Email link'), then Save.",
+    'auth/admin-restricted-operation':
+      "Creating accounts is switched off for this project. In Firebase: Authentication → Settings → User actions → turn on 'Enable create (sign-up)'.",
     'auth/invalid-credential': 'Wrong email or password.',
     'auth/wrong-password': 'Wrong email or password.',
     'auth/user-not-found': 'Wrong email or password.',
@@ -34,11 +41,13 @@ function friendly(err) {
     'auth/network-request-failed': "Couldn't reach Google. Check your connection and try again.",
     'auth/too-many-requests': 'Too many attempts. Wait a few minutes and try again.',
     'auth/configuration-not-found': 'Sign-in isn\'t set up yet. In Firebase, open Authentication and click "Get started".',
+    'auth/api-key-not-valid.-please-pass-a-valid-api-key.': "Firebase didn't accept this app's API key. Check src/firebase-config.js.",
+    'auth/requests-from-referer-https://gfrazier620-afk.github.io-are-blocked.':
+      "This website is blocked by the API key's restrictions. In Google Cloud → APIs & Services → Credentials, allow gfrazier620-afk.github.io for the browser key.",
   };
   const message = messages[err?.code];
-  if (!message) return err;
-  const out = new Error(message);
-  out.code = err.code;
+  const out = new Error(message ? `${message} [${err.code}]` : `${err?.message ?? 'Sign-in failed.'}`);
+  out.code = err?.code;
   return out;
 }
 
@@ -62,7 +71,7 @@ export async function signInGoogle() {
       const credential = GoogleAuthProvider.credentialFromError(err);
       if (credential) return describe((await signInWithCredential(auth, credential)).user);
     }
-    throw friendly(err);
+    throw friendly(err, 'google');
   }
 }
 
@@ -80,7 +89,7 @@ export async function signInEmail({ email, password, create }) {
     }
     return describe(result.user);
   } catch (err) {
-    throw friendly(err);
+    throw friendly(err, 'email');
   }
 }
 
@@ -89,7 +98,7 @@ export async function resetPassword(email) {
   try {
     await sendPasswordResetEmail(auth, email);
   } catch (err) {
-    throw friendly(err);
+    throw friendly(err, 'email');
   }
 }
 
