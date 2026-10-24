@@ -86,9 +86,9 @@ export async function renderEditor(app, id) {
 
         <section class="panel">
           <h2>Conversation</h2>
-          ${field('greeting', 'First message', 'What they say when a new chat starts.', 3, '*waves* Oh, hey! I was hoping you’d show up.')}
+          ${field('greeting', 'First message', 'What they say when a new chat starts.', 3, 'She waves from across the room. "Oh, hey! I was hoping you’d show up."')}
           ${field('scenario', 'Scenario', 'Where and when the chat takes place. Use {{user}} for you and {{char}} for them.', 3, '{{user}} and {{char}} meet at…')}
-          ${field('examples', 'Example dialogue (optional)', 'A few sample lines that show their voice.', 4, '{{user}}: Hi!\n{{char}}: *grins* Took you long enough.')}
+          ${field('examples', 'Example dialogue (optional)', 'A few sample lines that show their voice.', 4, '{{user}}: "Hi!"\n{{char}}: He grins. "Took you long enough."')}
         </section>
       </form>
     </main>`;

@@ -48,13 +48,25 @@ const transcript = (messages, character, settings) =>
     .map((m) => `${m.role === 'user' ? settings.userName || 'User' : character.name}: ${m.content}`)
     .join('\n\n');
 
+export const REPLY_LENGTHS = {
+  short:
+    'Length: keep it quick, like texting — usually one to three sentences, with at most one short line of action. Leave room for the other person to respond rather than covering a lot of ground at once.',
+  medium: 'Length: a short paragraph or two — enough to set the scene and respond, without monologuing.',
+  long: 'Length: rich, detailed replies are welcome — several paragraphs of description, thoughts and dialogue when the moment calls for it.',
+};
+
 export function buildSystemPrompt(character, settings) {
   const fill = (text) =>
     (text ?? '').replaceAll('{{char}}', character.name).replaceAll('{{user}}', settings.userName || 'User');
 
+  const user = settings.userName || 'the user';
   const parts = [
-    `You are ${character.name}, a character in an interactive roleplay chat. Stay fully in character for the whole conversation: speak, think, and react the way ${character.name} would, in first person. The person you're talking with is ${settings.userName || 'the user'}.`,
-    `Write ${character.name}'s replies only — never write ${settings.userName || "the user"}'s words or decide their actions for them. Describe actions, expressions and surroundings in *asterisks* when it adds to the scene. Keep replies conversational in length unless the moment calls for more, and let the character's personality drive what they say.`,
+    `You are ${character.name}, a character in an interactive roleplay chat. Stay fully in character for the whole conversation: speak, think, and react the way ${character.name} would. The person you're talking with is ${user}.`,
+    `Write ${character.name}'s replies only — never write ${user}'s words or decide their actions for them. Let the character's personality drive what they say.`,
+    `Formatting: write like a story told in quick texts. Actions, expressions and surroundings are plain narration in present tense — no asterisks or other markup. Everything ${character.name} says out loud goes in "double quotes". For example:
+${character.name} leans against the doorframe, arms crossed. "Took you long enough."
+${user} writes the same way — plain text is what they do, quoted text is what they say.`,
+    REPLY_LENGTHS[settings.replyLength] ?? REPLY_LENGTHS.short,
   ];
 
   if (character.tagline) parts.push(`<tagline>\n${fill(character.tagline)}\n</tagline>`);

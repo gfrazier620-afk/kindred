@@ -1,5 +1,5 @@
 import './style.css';
-import { listCharacters, saveCharacter, getSettings, saveSettings } from './db.js';
+import { listCharacters, getCharacter, saveCharacter, getSettings, saveSettings } from './db.js';
 import { STARTER_CHARACTERS } from './seeds.js';
 import { ICON_SPRITE } from './util.js';
 import { renderHome } from './views/home.js';
@@ -40,14 +40,27 @@ async function route() {
   location.hash = '#/';
 }
 
+// Bump when the starter characters' opening lines change, so existing installs get them.
+const STARTER_VERSION = 2;
+
 async function seedOnce() {
   const settings = await getSettings();
-  if (settings.seeded) return;
-  const existing = await listCharacters();
-  if (existing.length === 0) {
-    for (const c of STARTER_CHARACTERS) await saveCharacter(c);
+  if (!settings.seeded) {
+    const existing = await listCharacters();
+    if (existing.length === 0) {
+      for (const c of STARTER_CHARACTERS) await saveCharacter(c);
+    }
+  } else if ((settings.starterVersion ?? 1) < STARTER_VERSION) {
+    // v2: openings switched from *asterisk actions* to plain narration + "quoted speech".
+    // Only touch starters whose opening still uses the old asterisk style.
+    for (const starter of STARTER_CHARACTERS) {
+      const c = await getCharacter(starter.id);
+      if (c?.greeting?.includes('*')) {
+        await saveCharacter({ ...c, greeting: starter.greeting, examples: starter.examples });
+      }
+    }
   }
-  await saveSettings({ ...settings, seeded: true });
+  await saveSettings({ ...settings, seeded: true, starterVersion: STARTER_VERSION });
 }
 
 window.addEventListener('hashchange', route);

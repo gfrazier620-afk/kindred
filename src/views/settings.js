@@ -3,9 +3,15 @@ import { MODELS } from '../ai.js';
 import { esc, icon, $, toast } from '../util.js';
 
 const EFFORTS = [
-  ['low', 'Quick — fast, casual replies'],
+  ['low', 'Quick — fastest replies'],
   ['medium', 'Balanced'],
   ['high', 'Thoughtful — slower, more considered'],
+];
+
+const LENGTHS = [
+  ['short', 'Short — quick texts, 1–3 sentences'],
+  ['medium', 'Medium — a paragraph or two'],
+  ['long', 'Long — detailed, story-like replies'],
 ];
 
 export async function renderSettings(app) {
@@ -37,7 +43,14 @@ export async function renderSettings(app) {
             </select>
           </label>
           <label class="field">
-            <span class="field-label">Reply style</span>
+            <span class="field-label">Reply length</span>
+            <select name="replyLength">
+              ${LENGTHS.map(([v, label]) => `<option value="${v}" ${v === s.replyLength ? 'selected' : ''}>${label}</option>`).join('')}
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-label">Thinking</span>
+            <span class="field-hint">How much the character thinks before replying. Quick is fastest.</span>
             <select name="effort">
               ${EFFORTS.map(([v, label]) => `<option value="${v}" ${v === s.effort ? 'selected' : ''}>${label}</option>`).join('')}
             </select>
@@ -68,6 +81,7 @@ export async function renderSettings(app) {
       apiKey: f.apiKey.value.trim(),
       model: f.model.value,
       effort: f.effort.value,
+      replyLength: f.replyLength.value,
       userName: f.userName.value.trim() || 'You',
       userPersona: f.userPersona.value.trim(),
     });

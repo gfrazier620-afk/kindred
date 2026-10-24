@@ -263,3 +263,9 @@ button.chip:hover { color: var(--text); border-color: var(--accent); }
 .empty { text-align: center; color: var(--muted); padding: 30px 16px; }
 .empty .icon { width: 40px; height: 40px; opacity: 0.6; }
 .danger-text { color: var(--danger); }
+
+/* ---------- Narration vs. speech ---------- */
+.bubble, .prose { color: #b4aac9; }
+.speech { color: #fff; }
+.msg-user .bubble { color: rgba(255, 255, 255, 0.82); }
+.msg-user .bubble .speech { color: #fff; font-weight: 500; }

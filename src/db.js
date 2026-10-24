@@ -102,6 +102,7 @@ const DEFAULT_SETTINGS = {
   apiKey: '',
   model: 'claude-opus-5-5',
   effort: 'low',
+  replyLength: 'short',
   userName: 'You',
   userPersona: '',
 };

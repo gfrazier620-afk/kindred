@@ -4,9 +4,12 @@ export const esc = (s) =>
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
-// Formats chat text: *actions* become italics, "quotes" stay plain, newlines kept.
+// Formats chat text: "spoken words" are highlighted against plain narration,
+// older *asterisk actions* still show as italics, newlines kept.
 export function formatMessage(text) {
   return esc(text)
+    .replace(/&quot;([^\n]*?)&quot;/g, '<span class="speech">&quot;$1&quot;</span>')
+    .replace(/“([^\n”]*)”/g, '<span class="speech">“$1”</span>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
     .replace(/\n/g, '<br>');
