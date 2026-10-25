@@ -1,3 +1,5 @@
+import { MATURE_STARTERS } from './seeds-mature.js';
+
 // Starter characters added the first time the app opens, so there's something to try.
 export const STARTER_CHARACTERS = [
   {
@@ -57,4 +59,5 @@ export const STARTER_CHARACTERS = [
     tags: ['Slice of life', 'Cozy'],
     createdAt: 3,
   },
+  ...MATURE_STARTERS,
 ];

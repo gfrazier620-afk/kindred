@@ -2,7 +2,7 @@ import { getCharacter, deleteCharacter, listChats, deleteChat, listMemories, get
 import { creatorOf } from '../stats.js';
 import { unshareCharacter } from '../share.js';
 import { isMature, isAdult, confirmAdult } from '../age.js';
-import { esc, avatarHtml, icon, $, toast, downloadJson, formatMessage, openPhoto } from '../util.js';
+import { esc, avatarHtml, icon, $, toast, downloadJson, formatMessage, openPhoto, fillNames } from '../util.js';
 
 export async function renderProfile(app, id) {
   const c = await getCharacter(id);
@@ -93,8 +93,8 @@ export async function renderProfile(app, id) {
           : ''
       }
 
-      ${section('Scenario', c.scenario)}
-      ${section('First message', c.greeting)}
+      ${section('Scenario', fillNames(c.scenario, c, settings))}
+      ${section('First message', fillNames(c.greeting, c, settings))}
     </main>`;
 
   // Tap the photo to see it full screen (characters without a photo have nothing to enlarge).

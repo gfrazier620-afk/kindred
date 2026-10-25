@@ -56,7 +56,7 @@ async function route() {
 }
 
 // Bump when the starter characters' opening lines change, so existing installs get them.
-const STARTER_VERSION = 2;
+const STARTER_VERSION = 3;
 
 async function seedOnce() {
   const settings = await getSettings();
@@ -66,12 +66,21 @@ async function seedOnce() {
       for (const c of STARTER_CHARACTERS) await saveCharacter(c);
     }
   } else if ((settings.starterVersion ?? 1) < STARTER_VERSION) {
-    // v2: openings switched from *asterisk actions* to plain narration + "quoted speech".
-    // Only touch starters whose opening still uses the old asterisk style.
-    for (const starter of STARTER_CHARACTERS) {
-      const c = await getCharacter(starter.id);
-      if (c?.greeting?.includes('*')) {
-        await saveCharacter({ ...c, greeting: starter.greeting, examples: starter.examples });
+    const from = settings.starterVersion ?? 1;
+    if (from < 2) {
+      // v2: openings switched from *asterisk actions* to plain narration + "quoted speech".
+      // Only touch starters whose opening still uses the old asterisk style.
+      for (const starter of STARTER_CHARACTERS) {
+        const c = await getCharacter(starter.id);
+        if (c?.greeting?.includes('*')) {
+          await saveCharacter({ ...c, greeting: starter.greeting, examples: starter.examples });
+        }
+      }
+    }
+    if (from < 3) {
+      // v3: new built-in characters. Add the ones this device doesn't have; never overwrite anything.
+      for (const starter of STARTER_CHARACTERS.filter((s) => s.since === 3)) {
+        if (!(await getCharacter(starter.id))) await saveCharacter(starter);
       }
     }
   }
